@@ -16,6 +16,53 @@ const Home = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Stories data
+  const stories = [
+    {
+      id: 0,
+      username: "Add Story",
+      avatar: "https://placehold.co/80x80/4F46E5/FFFFFF?text=+",
+      hasStory: false,
+      isAddStory: true,
+    },
+    {
+      id: 1,
+      username: "Alex",
+      avatar: "https://placehold.co/80x80/EF4444/FFFFFF?text=A",
+      hasStory: true,
+    },
+    {
+      id: 2,
+      username: "Sarah",
+      avatar: "https://placehold.co/80x80/F59E0B/FFFFFF?text=S",
+      hasStory: true,
+    },
+    {
+      id: 3,
+      username: "Mike",
+      avatar: "https://placehold.co/80x80/10B981/FFFFFF?text=M",
+      hasStory: true,
+    },
+    {
+      id: 4,
+      username: "Emily",
+      avatar: "https://placehold.co/80x80/6366F1/FFFFFF?text=E",
+      hasStory: true,
+    },
+    {
+      id: 5,
+      username: "James",
+      avatar: "https://placehold.co/80x80/8B5CF6/FFFFFF?text=J",
+      hasStory: true,
+    },
+    {
+      id: 6,
+      username: "Lisa",
+      avatar: "https://placehold.co/80x80/EC4899/FFFFFF?text=L",
+      hasStory: true,
+    },
+  ];
+
   const posts = [
     {
       id: 1,
@@ -89,6 +136,39 @@ const Home = () => {
 
   return (
     <div className="space-y-6">
+      {/* STORIES SECTION */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
+        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+          {stories.map((story) => (
+            <div
+              key={story.id}
+              className="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer group"
+            >
+              <div
+                className={`${
+                  story.hasStory
+                    ? "bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600"
+                    : "bg-gray-200 dark:bg-slate-700"
+                } ${
+                  story.isAddStory ? "p-0" : "p-0.5"
+                } rounded-full transition-transform group-hover:scale-105`}
+              >
+                <div className="bg-white dark:bg-slate-800 rounded-full p-0.5">
+                  <img
+                    src={story.avatar}
+                    alt={story.username}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                </div>
+              </div>
+              <span className="text-xs text-center text-slate-700 dark:text-slate-300 font-medium truncate w-full">
+                {story.username}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Sort Buttons */}
       <div className="flex gap-3">
         <button
