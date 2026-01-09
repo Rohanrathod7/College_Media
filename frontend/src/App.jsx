@@ -10,6 +10,8 @@ import { PostSkeleton } from "./components/SkeletonLoader.jsx";
 import { useWebVitals, reportWebVitals } from "./hooks/useWebVitals.js";
 import { performanceMonitor } from "./utils/performanceMonitor.js";
 import BackButton from "./components/BackButton.jsx";
+import InstallPWA from "./components/InstallPWA.jsx";
+import OfflineIndicator from "./components/OfflineIndicator.jsx";
 
 // Lazy load route components for code splitting
 const Reels = lazy(() => import("./pages/Reels.jsx"));
@@ -342,6 +344,10 @@ const App = () => {
           />
         </Routes>
 
+        {/* PWA Components */}
+        <InstallPWA />
+        <OfflineIndicator />
+
         <style jsx global>{`
           .scrollbar-hide::-webkit-scrollbar {
             display: none;
@@ -355,6 +361,21 @@ const App = () => {
             border: 2px solid transparent;
             background-clip: padding-box, border-box;
             background-origin: padding-box, border-box;
+          }
+          
+          /* PWA Animation */
+          @keyframes slide-down {
+            from {
+              transform: translate(-50%, -100%);
+              opacity: 0;
+            }
+            to {
+              transform: translate(-50%, 0);
+              opacity: 1;
+            }
+          }
+          .animate-slide-down {
+            animation: slide-down 0.3s ease-out;
           }
         `}</style>
       </ErrorBoundary>
