@@ -1,148 +1,165 @@
-import { Link, useLocation, useSearchParams } from "react-router-dom";
-// eslint-disable-next-line no-unused-vars
-import { motion } from "framer-motion";
+import { Link, useLocation } from "react-router-dom";
 import collegeMediaLogo from "../assets/logos.png";
 
 function LeftSidebar() {
   const location = useLocation();
-
-  const items = [
-    { label: "Feed", path: "/" },
-    { label: "Courses", path: "/courses" },
-    { label: "Trending", path: "/trending" },
-    { label: "Explore", path: "/explore" },
-    { label: "Stories", path: "/stories" },
-    { label: "Learning", path: "/learning" },
-    { label: "Reels", path: "/reels" },
-    { label: "Messages", path: "/messages" },
-    { label: "Profile", path: "/profile" },
+  
+  const menuItems = [
+    { 
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      ),
+      label: "Feed",
+      badge: "10",
+      path: "/home"
+    },
+    { 
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      ),
+      label: "Courses",
+      path: "/courses"
+    },
+    { 
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        </svg>
+      ),
+      label: "Trending",
+      path: "/trending"
+    },
+    { 
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      label: "Explore",
+      path: "/explore"
+    },
+    { 
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+        </svg>
+      ),
+      label: "Stories",
+      path: "/stories"
+    },
+    { 
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+      ),
+      label: "Learning",
+      path: "/learning"
+    },
+    { 
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+      ),
+      label: "Reels",
+      path: "/reels"
+    },
+    { 
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      ),
+      label: "Messages",
+      badge: "3",
+      path: "/messages"
+    },
+    { 
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      ),
+      label: "Profile",
+      path: "/profile"
+    },
   ];
 
   return (
-    <aside className="hidden lg:flex sticky top-24 h-[calc(100vh-6rem)] flex-col w-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
-      <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+    <aside className="fixed left-0 top-0 h-screen w-48 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 z-40 flex flex-col">
+      {/* Logo */}
+      <div className="p-5 border-b border-gray-200 dark:border-slate-700">
         <div className="flex items-center justify-center">
           <img
             src={collegeMediaLogo}
             alt="College Media Logo"
-            className="h-12 w-auto object-contain"
+            className="h-10 w-auto object-contain"
           />
         </div>
       </div>
-
-      <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
-        {items.map((item) => {
-          const active = location.pathname === item.path;
-          return (
+      
+      {/* Menu Items */}
+      <nav className="flex-1 overflow-y-auto py-4 px-2">
+        <div className="space-y-1">
+          {menuItems.map((item, index) => (
             <Link
-              key={item.path}
+              key={index}
               to={item.path}
-              className={`
-                relative flex items-center
-                px-4 py-3 rounded-xl
-                text-sm font-medium transition-all duration-200
-                ${
-                  active
-                    ? "bg-slate-100 dark:bg-slate-800 text-orange-500 font-semibold shadow-sm"
-                    : "text-slate-600 dark:text-slate-300 hover:text-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800"
-                }
-              `}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
+                location.pathname === item.path
+                  ? "bg-gray-100 dark:bg-slate-700 font-semibold"
+                  : "hover:bg-gray-50 dark:hover:bg-slate-700 font-normal"
+              }`}
             >
-              {active && (
-                <span className="absolute left-0 h-6 w-1 bg-orange-500 rounded-full" />
-              )}
-              <span className="ml-2">{item.label}</span>
+              <div className="relative">
+                <span className={location.pathname === item.path ? "text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white"}>
+                  {item.icon}
+                </span>
+                {item.badge && (
+                  <span className="absolute -top-1.5 -right-1.5 px-1 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] text-center">
+                    {item.badge}
+                  </span>
+                )}
+              </div>
+              <span className={`text-sm ${
+                location.pathname === item.path
+                  ? "text-gray-900 dark:text-white font-semibold"
+                  : "text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white"
+              }`}>
+                {item.label}
+              </span>
             </Link>
-          );
-        })}
+          ))}
+        </div>
+        
+        <hr className="my-3 border-gray-200 dark:border-slate-600" />
+        
+        <div className="space-y-1">
+          <Link to="/more" className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 hover:bg-gray-50 dark:hover:bg-slate-700 group">
+            <svg className="w-6 h-6 text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">More</span>
+          </Link>
+        </div>
       </nav>
 
-      {/* Course Filter - Only visible on /courses */}
-      {location.pathname === "/courses" && (
-        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 backdrop-blur-sm">
-          <div className="flex flex-col space-y-3">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Filter Courses
-            </span>
-            <CourseFilterToggle />
-          </div>
-        </div>
-      )}
-
-      <div className="p-4 border-t border-slate-200 dark:border-slate-700 space-y-1">
-        <Link
-          to="/settings"
-          className="flex items-center space-x-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 group"
-        >
-          <svg
-            className="w-6 h-6 group-hover:text-slate-900 dark:group-hover:text-white"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
+      {/* Bottom Section */}
+      <div className="p-3 border-t border-gray-200 dark:border-slate-700">
+        <Link to="/settings" className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 hover:bg-gray-50 dark:hover:bg-slate-700 group">
+          <svg className="w-6 h-6 text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <span className="text-sm font-medium group-hover:text-slate-900 dark:group-hover:text-white">
-            Settings
-          </span>
+          <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">Settings</span>
         </Link>
       </div>
     </aside>
-  );
-}
-
-// Internal Component for Filter Logic
-function CourseFilterToggle() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const currentFilter = searchParams.get("type") || "all";
-
-  const setFilter = (type) => {
-    setSearchParams({ type });
-  };
-
-  return (
-    <div className="flex bg-slate-200 dark:bg-slate-700 p-1 rounded-lg relative">
-      {/* Animated Background Pill */}
-      <motion.div
-        className="absolute h-[calc(100%-8px)] top-1 bg-white dark:bg-slate-600 rounded-md shadow-sm z-0"
-        initial={false}
-        animate={{
-          left:
-            currentFilter === "all"
-              ? "4px"
-              : currentFilter === "free"
-              ? "33%"
-              : "66%",
-          width: "32%",
-          x: currentFilter === "free" ? 2 : currentFilter === "paid" ? -2 : 0,
-        }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      />
-
-      {["all", "free", "paid"].map((type) => (
-        <button
-          key={type}
-          onClick={() => setFilter(type)}
-          className={`flex-1 relative z-10 py-1.5 text-xs font-semibold capitalize transition-colors duration-200 ${
-            currentFilter === type
-              ? "text-slate-900 dark:text-white"
-              : "text-slate-500 dark:text-slate-400 hover:text-slate-700"
-          }`}
-        >
-          {type}
-        </button>
-      ))}
-    </div>
   );
 }
 

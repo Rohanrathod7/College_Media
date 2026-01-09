@@ -19,8 +19,10 @@ import "./index.css";
 import "./styles/accessibility.css";
 import App from "./app/App.jsx";
 
-// Register service worker for PWA
-registerServiceWorker();
+// Register service worker for PWA only in production
+if (import.meta.env.PROD) {
+  registerServiceWorker();
+}
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

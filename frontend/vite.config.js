@@ -40,6 +40,10 @@ export default defineConfig(({ command, mode }) => {
     server: {
       host: true,
       port: 5173,
+      hmr: {
+        protocol: "ws",
+        host: "localhost",
+      },
     },
 
     // 🔹 BUILD-ONLY settings
