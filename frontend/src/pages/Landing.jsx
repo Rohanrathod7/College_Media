@@ -168,10 +168,10 @@ const Landing = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-x-hidden">
 
       {/* NAVBAR */}
-      <nav className="fixed top-0 w-full z-50 pt-2 md:pt-4 px-2 md:px-4">
+      <nav className="fixed top-0 left-0 right-0 w-full z-50 px-2 md:px-4 py-2 md:py-4 bg-white">
         <div className="max-w-6xl mx-auto">
           <div className="bg-white/95 backdrop-blur-md rounded-full shadow-lg px-3 md:px-6 py-2 md:py-3 flex justify-between items-center border border-gray-200">
             <div className="flex items-center gap-1.5 md:gap-2">

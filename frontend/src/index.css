@@ -3,11 +3,48 @@
 @tailwind utilities;
 
 @layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  html {
+    overflow-x: hidden;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  
   body {
     @apply bg-slate-50 text-slate-900 transition-colors duration-300;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden;
+    width: 100%;
+    position: relative;
+  }
+  body::before {
+    content: none !important;
   }
   .dark body {
     @apply bg-slate-950 text-slate-100;
+  }
+  
+  #root {
+    min-height: 100vh;
+    position: relative;
+    width: 100%;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Reset list styles */
+  ol, ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
   }
 }
 

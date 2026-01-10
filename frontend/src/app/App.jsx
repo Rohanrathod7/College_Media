@@ -43,11 +43,11 @@ const App = () => {
   }, []);
 
   return (
-    <AppProviders>
-
-      <AppRoutes props={layoutState} />
-
-    </AppProviders>
+    <div style={{ margin: 0, padding: 0, width: '100%', minHeight: '100vh' }}>
+      <AppProviders>
+        <AppRoutes props={layoutState} />
+      </AppProviders>
+    </div>
   );
 };
 
