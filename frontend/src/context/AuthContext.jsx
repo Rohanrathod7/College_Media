@@ -161,10 +161,31 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+      const authToken = token || localStorage.getItem("token");
+
+      // Call backend logout endpoint if token exists
+      if (authToken) {
+        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authToken}`,
+          },
+        });
+      }
+    } catch (error) {
+      // Continue with logout even if backend call fails
+      console.error("Logout API error:", error);
+    } finally {
+      // Always clear local storage and state
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      setToken(null);
+      setUser(null);
+    }
   };
 
   const updateUserProfile = async (profileData) => {

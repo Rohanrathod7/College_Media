@@ -405,4 +405,25 @@ router.post('/reset-password', async (req, res, next) => {
   }
 });
 
+// Logout endpoint
+router.post('/logout', async (req, res, next) => {
+  try {
+    // In a production environment with refresh tokens, you would:
+    // 1. Invalidate the refresh token in the database
+    // 2. Add the access token to a blacklist (Redis recommended)
+    // 3. Clear any server-side session data
+    
+    // For now, we'll send a success response
+    // The client will clear the token from localStorage
+    res.json({
+      success: true,
+      data: null,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    next(error);
+  }
+});
+
 module.exports = router;

@@ -1,9 +1,13 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 // import { useTheme } from '../context/ThemeContext';
 
 const Settings = () => {
   // const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const [settings, setSettings] = useState({
     emailNotifications: true,
@@ -14,8 +18,24 @@ const Settings = () => {
     darkMode: false,
   });
 
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
   const toggleSetting = (key) => {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleLogoutClick = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutConfirm(false);
+    logout();
+    navigate("/login");
+  };
+
+  const handleLogoutCancel = () => {
+    setShowLogoutConfirm(false);
   };
 
   const settingsSections = [
@@ -247,9 +267,40 @@ const Settings = () => {
       </div>
 
       {/* Logout Button */}
-      <button className="w-full p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200">
+      <button 
+        onClick={handleLogoutClick}
+        className="w-full p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+      >
         <p className="font-bold text-gray-900 dark:text-gray-100">Log Out</p>
       </button>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+              Confirm Logout
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              Are you sure you want to log out? You'll need to sign in again to access your account.
+            </p>
+            <div className="flex space-x-3 pt-2">
+              <button
+                onClick={handleLogoutCancel}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogoutConfirm}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors duration-200"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
