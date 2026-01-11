@@ -182,42 +182,6 @@ const permanentDelete = (id) => {
   return true;
 };
 
-// Deactivate user account (temporary)
-const deactivate = (id, reason = null) => {
-  const users = readUsers();
-  const userIndex = users.findIndex(user => user._id === id);
-  
-  if (userIndex === -1) {
-    return null;
-  }
-  
-  users[userIndex].isActive = false;
-  users[userIndex].deletionReason = reason;
-  users[userIndex].updatedAt = new Date().toISOString();
-  
-  writeUsers(users);
-  
-  return true;
-};
-
-// Reactivate user account
-const reactivate = (id) => {
-  const users = readUsers();
-  const userIndex = users.findIndex(user => user._id === id);
-  
-  if (userIndex === -1) {
-    return null;
-  }
-  
-  users[userIndex].isActive = true;
-  users[userIndex].deletionReason = null;
-  users[userIndex].updatedAt = new Date().toISOString();
-  
-  writeUsers(users);
-  
-  return true;
-};
-
 // Update one field (generic update method)
 const updateOne = (query, updateData) => {
   const users = readUsers();
