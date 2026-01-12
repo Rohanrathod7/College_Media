@@ -1,130 +1,105 @@
-const winston = require('winston');
-const DailyRotateFile = require('winston-daily-rotate-file');
-const path = require('path');
+/**
+ * ==================================================
+ * JobRunner – Safe Background Job Executor
+ * Retry | Backoff | Timeout | DLQ | Logging
+ * ==================================================
+ */
 
-// Define log directory
-const logDir = path.join(__dirname, '../logs');
+class JobRunner {
+  constructor({
+    jobName,
+    handler,
+    maxRetries = 3,
+    backoffMs = 2000,
+    timeoutMs = 5000,
+  }) {
+    this.jobName = jobName;
+    this.handler = handler;
+    this.maxRetries = maxRetries;
+    this.backoffMs = backoffMs;
+    this.timeoutMs = timeoutMs;
+  }
 
-// Define log levels
-const levels = {
-    error: 0,
-    warn: 1,
-    info: 2,
-    http: 3,
-    debug: 4,
-};
+  async run(payload = {}) {
+    let attempt = 0;
 
-// Define colors for each level
-const colors = {
-    error: 'red',
-    warn: 'yellow',
-    info: 'green',
-    http: 'magenta',
-    debug: 'white',
-};
+    while (attempt <= this.maxRetries) {
+      attempt++;
 
-// Start valid keys to redact
-const SENSITIVE_KEYS = ['password', 'token', 'secret', 'authorization', 'cookie', 'otp'];
+      try {
+        console.log(
+          `[JOB START] ${this.jobName} | Attempt ${attempt}`
+        );
 
-// Redaction formatter
-const redactSensitiveData = winston.format((info) => {
-    const maskSensitive = (obj) => {
-        if (typeof obj !== 'object' || obj === null) return obj;
+        const result = await this._runWithTimeout(
+          this.handler(payload),
+          this.timeoutMs
+        );
 
-        // Handle specific object types we don't want to traverse
-        if (obj instanceof Date) return obj;
-        if (Array.isArray(obj)) return obj.map(maskSensitive);
+        console.log(
+          `[JOB SUCCESS] ${this.jobName} | Attempt ${attempt}`
+        );
 
-        const newObj = {};
-        for (const key in obj) {
-            if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                if (SENSITIVE_KEYS.some(k => key.toLowerCase().includes(k))) {
-                    newObj[key] = '***REDACTED***';
-                } else if (typeof obj[key] === 'object') {
-                    newObj[key] = maskSensitive(obj[key]);
-                } else {
-                    newObj[key] = obj[key];
-                }
-            }
+        return result;
+      } catch (error) {
+        console.error(
+          `[JOB FAILED] ${this.jobName} | Attempt ${attempt}`,
+          {
+            error: error.message,
+            payload,
+          }
+        );
+
+        if (attempt > this.maxRetries) {
+          await this._moveToDeadLetterQueue(error, payload);
+          throw error;
         }
-        return newObj;
-    };
 
-    if (info.message && typeof info.message === 'object') {
-        info.message = maskSensitive(info.message);
+        await this._backoff(attempt);
+      }
     }
+  }
 
-    // Also mask metadata if present
-    if (info.metadata) {
-        info.metadata = maskSensitive(info.metadata);
-    }
+  async _runWithTimeout(promise, timeoutMs) {
+    let timeout;
 
-    return info;
-});
+    const timeoutPromise = new Promise((_, reject) => {
+      timeout = setTimeout(() => {
+        reject(new Error("Job execution timed out"));
+      }, timeoutMs);
+    });
 
-// Configure the current environment
-const level = () => {
-    const env = process.env.NODE_ENV || 'development';
-    const isDevelopment = env === 'development';
-    return isDevelopment ? 'debug' : 'info';
-};
+    return Promise.race([promise, timeoutPromise]).finally(() =>
+      clearTimeout(timeout)
+    );
+  }
 
-// Tell winston about our colors
-winston.addColors(colors);
+  async _backoff(attempt) {
+    const delay = this.backoffMs * attempt;
+    console.log(
+      `[JOB RETRY] ${this.jobName} | Retrying in ${delay}ms`
+    );
 
-// Define format
-const format = winston.format.combine(
-    redactSensitiveData(),
-    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }),
-    winston.format.printf(
-        (info) => `${info.timestamp} ${info.level}: ${typeof info.message === 'object' ? JSON.stringify(info.message) : info.message}`
-    )
-);
+    return new Promise((resolve) => setTimeout(resolve, delay));
+  }
 
-// Define transports
-const transports = [
-    // Console Transport
-    new winston.transports.Console({
-        format: winston.format.combine(
-            winston.format.colorize({ all: true }),
-            winston.format.printf(
-                (info) => `${info.timestamp} ${info.level}: ${typeof info.message === 'object' ? JSON.stringify(info.message, null, 2) : info.message}`
-            )
-        ),
-    }),
+  async _moveToDeadLetterQueue(error, payload) {
+    console.error(
+      `[JOB DEAD LETTER] ${this.jobName}`,
+      {
+        reason: error.message,
+        payload,
+        timestamp: new Date().toISOString(),
+      }
+    );
 
-    // File Transport - Error Logs
-    new DailyRotateFile({
-        filename: path.join(logDir, 'error-%DATE%.log'),
-        datePattern: 'YYYY-MM-DD',
-        zippedArchive: true,
-        maxSize: '20m',
-        maxFiles: '14d',
-        level: 'error',
-        format: winston.format.combine(
-            winston.format.json()
-        )
-    }),
+    /**
+     * 👉 Future-ready:
+     * - Save to DB
+     * - Push to DLQ queue
+     * - Send alert (Slack / Email)
+     */
+  }
+}
 
-    // File Transport - All Logs
-    new DailyRotateFile({
-        filename: path.join(logDir, 'combined-%DATE%.log'),
-        datePattern: 'YYYY-MM-DD',
-        zippedArchive: true,
-        maxSize: '20m',
-        maxFiles: '14d',
-        format: winston.format.combine(
-            winston.format.json()
-        )
-    }),
-];
-
-// Create the logger
-const logger = winston.createLogger({
-    level: level(),
-    levels,
-    format,
-    transports,
-});
-
-module.exports = logger;
+module.exports = JobRunner;
