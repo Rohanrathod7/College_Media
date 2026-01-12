@@ -46,18 +46,6 @@ app.disable("x-powered-by");
 
 /* =================================================
    🚩 FEATURE FLAGS
-================================================= */
-const FEATURE_FLAGS = Object.freeze({
-  ENABLE_EXPERIMENTAL_RESUME: ENV !== "production",
-  ENABLE_NEW_MESSAGING_FLOW: ENV !== "production",
-  ENABLE_DEBUG_LOGS: ENV !== "production",
-  ENABLE_STRICT_RATE_LIMITING: ENV === "production",
-  ENABLE_VERBOSE_ERRORS: ENV !== "production",
-});
-/* ------------------
-   📊 OBSERVABILITY – REQUEST METRICS
------------------- */
-app.use(metricsMiddleware);
 /* ---------- Feature Flag Validation ---------- */
 (() => {
   Object.entries(FEATURE_FLAGS).forEach(([k, v]) => {
@@ -67,14 +55,8 @@ app.use(metricsMiddleware);
     }
   });
 
-  if (
-    ENV === "production" &&
-    (FEATURE_FLAGS.ENABLE_EXPERIMENTAL_RESUME ||
-      FEATURE_FLAGS.ENABLE_NEW_MESSAGING_FLOW)
-  ) {
-    logger.critical("Unsafe feature flags enabled in production");
-    process.exit(1);
-  }
+// Apply input sanitization (XSS & NoSQL injection protection)
+app.use(sanitizeAll);
 
   logger.info("Feature flags loaded", { env: ENV, FEATURE_FLAGS });
 })();
@@ -110,14 +92,8 @@ app.use(
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
-/* ------------------
-   ⏱️ REQUEST TIMEOUT GUARD
------------------- */
-app.use((req, res, next) => {
-  req.setTimeout(10 * 60 * 1000);
-  res.setTimeout(10 * 60 * 1000);
-  next();
-});
+// Static file serving for uploaded images
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 /* ------------------
    🐢 SLOW REQUEST LOGGER
@@ -218,6 +194,7 @@ const startServer = async () => {
   }
 
   app.use("/api/account", require("./routes/account"));
+  app.use("/api/notifications", require("./routes/notifications"));
 
   app.use(notFound);
   app.use(errorHandler);

@@ -6,18 +6,22 @@ const {
   checkValidation,
 } = require("../middleware/validationMiddleware");
 const router = express.Router();
-const jwt = require("jsonwebtoken");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const logger = require('../utils/logger');
+const { apiLimiter } = require('../middleware/rateLimitMiddleware');
+
+const { isValidName, isValidBio, isValidEmail } = require('../utils/validators');
+const { cacheMiddleware, invalidateCache } = require('../middleware/cacheMiddleware');
 
 const JWT_SECRET =
   process.env.JWT_SECRET || "college_media_secret_key";
 
-/* =====================================================
-   🔐 AUTH + AUTHZ MIDDLEWARE (IDOR SAFE)
-===================================================== */
-const verifyToken = async (req, res, next) => {
+/* ------------------
+   🔐 AUTH MIDDLEWARE
+------------------ */
+const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
 
   if (!token) {
@@ -30,32 +34,6 @@ const verifyToken = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
-
-    // 🔥 Fetch current user (for role-based access)
-    const db = req.app.get("dbConnection");
-    req.currentUser = db?.useMongoDB
-      ? await UserMongo.findById(req.userId)
-      : await UserMock.findById(req.userId);
-
-    if (!req.currentUser) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid user",
-      });
-    }
-
-    next();
-  } catch {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid token.",
-    });
-  }
-};
-
-/* =====================================================
-   🔒 OBJECT OWNERSHIP CHECK (IDOR FIX)
-===================================================== */
 const authorizeSelfOrAdmin = (paramKey = "userId") => {
   return (req, res, next) => {
     const targetId = req.params[paramKey];
@@ -68,11 +46,13 @@ const authorizeSelfOrAdmin = (paramKey = "userId") => {
       return res.status(403).json({
         success: false,
         message: "Forbidden: You are not authorized to access this resource",
-      });
-    }
-
     next();
-  };
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid token.",
+    });
+  }
 };
 
 /* ------------------
@@ -88,51 +68,311 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) cb(null, true);
-    else cb(new Error("Only image files are allowed"));
-  },
-});
-
-if (!fs.existsSync("uploads/")) fs.mkdirSync("uploads/");
-
-/* =====================================================
-   👤 GET OWN PROFILE (IDOR SAFE)
-===================================================== */
-router.get("/profile", verifyToken, async (req, res, next) => {
-  try {
-    res.json({
-      success: true,
-      data: req.currentUser,
-    });
-  } catch (err) {
-    next(err);
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'));
+    }
   }
 });
 
+// Get current user profile
+router.get('/profile', verifyToken, cacheMiddleware({ prefix: 'user-profile', ttl: 300 }), async (req, res, next) => {
+  try {
+    // Get database connection from app
+    const dbConnection = req.app.get('dbConnection');
+
+    if (dbConnection && dbConnection.useMongoDB) {
+      // Use MongoDB
+      const user = await UserMongo.findById(req.userId).select('-password');
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: user,
+        message: 'Profile retrieved successfully'
+      });
+    } else {
+      // Use mock database
+      const user = await UserMock.findById(req.userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: user,
+        message: 'Profile retrieved successfully'
+      });
+    }
+  } catch (error) {
+    logger.error('Get profile error:', error);
+    next(error);
+  }
+});
+
+// Update user profile
+router.put('/profile', verifyToken, validateProfileUpdate, checkValidation, invalidateCache(['user-profile::userId']), async (req, res, next) => {
+  try {
+    const { firstName, lastName, bio } = req.body;
+
+    // Validate inputs
+    if (firstName && !isValidName(firstName)) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        message: 'Invalid first name format (1-50 characters, letters only)'
+      });
+    }
+
+    if (lastName && !isValidName(lastName)) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        message: 'Invalid last name format (1-50 characters, letters only)'
+      });
+    }
+
+    if (bio && !isValidBio(bio)) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        message: 'Bio must be 500 characters or less'
+      });
+    }
+
+    // Get database connection from app
+    const dbConnection = req.app.get('dbConnection');
+
+    if (dbConnection && dbConnection.useMongoDB) {
+      // Use MongoDB
+      const updatedUser = await UserMongo.findByIdAndUpdate(
+        req.userId,
+        { firstName, lastName, bio },
+        { new: true, runValidators: true }
+      ).select('-password');
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: updatedUser,
+        message: 'Profile updated successfully'
+      });
+    } else {
+      // Use mock database
+      const updatedUser = await UserMock.update(
+        req.userId,
+        { firstName, lastName, bio }
+      );
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: updatedUser,
+        message: 'Profile updated successfully'
+      });
+    }
+  } catch (error) {
+    logger.error('Update profile error:', error);
+    next(error);
+  }
+});
+
+// Upload profile picture
+router.post('/profile-picture', verifyToken, upload.single('profilePicture'), invalidateCache(['user-profile::userId']), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        message: 'No file uploaded'
+      });
+    }
+
+    // Get database connection from app
+    const dbConnection = req.app.get('dbConnection');
+
+    if (dbConnection && dbConnection.useMongoDB) {
+      // Use MongoDB
+      const updatedUser = await UserMongo.findByIdAndUpdate(
+        req.userId,
+        { profilePicture: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` },
+        { new: true, runValidators: true }
+      ).select('-password');
+
 /* =====================================================
-   ✏️ UPDATE OWN PROFILE (IDOR + CONCURRENT SAFE)
-===================================================== */
-router.put(
-  "/profile",
-  verifyToken,
-  validateProfileUpdate,
-  checkValidation,
-  async (req, res, next) => {
-    try {
-      const { firstName, lastName, bio } = req.body;
-      const db = req.app.get("dbConnection");
+   👤 GET CURRENT USER PROFILE
 
-      if (db?.useMongoDB) {
-        req.currentUser.firstName = firstName;
-        req.currentUser.lastName = lastName;
-        req.currentUser.bio = bio;
+    if (db?.useMongoDB) {
+      const user = await UserMongo.findById(req.userId).select(
+        "-password"
+      );
+      if (!user)
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
 
-        const updatedUser = await req.currentUser.safeSave();
+      if (!updatedUser) {
+        return res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+      }
 
-        return res.json({
-          success: true,
-          data: updatedUser,
-          message: "Profile updated successfully",
+      res.json({
+        success: true,
+        data: {
+          profilePicture: updatedUser.profilePicture
+        },
+        message: 'Profile picture uploaded successfully'
+      });
+    }
+  } catch (error) {
+    logger.error('Upload profile picture error:', error);
+    next(error);
+  }
+});
+
+// Get user by username (for viewing other profiles)
+router.get('/profile/:username', verifyToken, cacheMiddleware({
+  prefix: 'user-profile-public',
+  ttl: 300,
+  keyGenerator: (req) => `cache:user-profile-public:${req.params.username}`
+}), async (req, res, next) => {
+  try {
+    const { username } = req.params;
+
+    // Get database connection from app
+    const dbConnection = req.app.get('dbConnection');
+
+    if (dbConnection && dbConnection.useMongoDB) {
+      // Use MongoDB
+      const user = await UserMongo.findOne({ username }).select('-password -email');
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: user,
+      });
+    }
+
+// Get user's posts
+router.get('/profile/:username/posts', verifyToken, cacheMiddleware({
+  prefix: 'user-posts-public',
+  ttl: 60,
+  keyGenerator: (req) => `cache:user-posts-public:${req.params.username}`
+}), async (req, res, next) => {
+  try {
+    const { username } = req.params;
+
+    // Get database connection from app
+    const dbConnection = req.app.get('dbConnection');
+
+    if (dbConnection && dbConnection.useMongoDB) {
+      // Use MongoDB - You'll need to create a Post model
+      const user = await UserMongo.findOne({ username });
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
+        });
+      }
+
+      // TODO: Implement Post model and fetch posts
+      res.json({
+        success: true,
+        data: [],
+        message: 'Posts retrieved successfully'
+      });
+    } else {
+      // Use mock database - return mock posts
+      const mockPosts = [
+        {
+          _id: 1,
+          imageUrl: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=400&fit=crop',
+          likes: 234,
+          commentCount: 45,
+          createdAt: new Date()
+        },
+        {
+          _id: 2,
+          imageUrl: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=400&h=400&fit=crop',
+          likes: 189,
+          commentCount: 32,
+          createdAt: new Date()
+        }
+      ];
+
+      res.json({
+        success: true,
+        data: mockPosts,
+        message: 'Posts retrieved successfully'
+      });
+    }
+  } catch (error) {
+    logger.error('Get user posts error:', error);
+    next(error);
+  }
+});
+
+// Update profile settings (email, privacy, etc.)
+router.put('/profile/settings', verifyToken, invalidateCache(['user-profile::userId']), async (req, res, next) => {
+  try {
+    const { email, isPrivate, notificationSettings } = req.body;
+
+    // Get database connection from app
+    const dbConnection = req.app.get('dbConnection');
+
+    const updateData = {};
+    if (email) updateData.email = email;
+    if (typeof isPrivate !== 'undefined') updateData.isPrivate = isPrivate;
+    if (notificationSettings) updateData.notificationSettings = notificationSettings;
+
+    if (dbConnection && dbConnection.useMongoDB) {
+      // Use MongoDB
+      const updatedUser = await UserMongo.findByIdAndUpdate(
+        req.userId,
+        updateData,
+        { new: true, runValidators: true }
+      ).select('-password');
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          success: false,
+          data: null,
+          message: 'User not found'
         });
       }
 
@@ -148,14 +388,40 @@ router.put(
         message: "Profile updated successfully",
       });
     } catch (err) {
-      next(err);
+      next(err); // 409 conflict handled globally
     }
   }
 );
 
-/* =====================================================
-   ⚙️ UPDATE OWN SETTINGS (IDOR SAFE)
-===================================================== */
+// Get profile stats (followers, following, posts count)
+router.get('/profile/stats', verifyToken, cacheMiddleware({ prefix: 'user-stats', ttl: 300 }), async (req, res, next) => {
+  try {
+    const { email, isPrivate, notificationSettings } = req.body;
+    const db = req.app.get("dbConnection");
+
+    if (db?.useMongoDB) {
+      const user = await UserMongo.findById(req.userId);
+      if (!user)
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
+
+      if (email) user.email = email;
+      if (typeof isPrivate !== "undefined")
+        user.isPrivate = isPrivate;
+      if (notificationSettings)
+        user.notificationSettings = notificationSettings;
+
+      const updatedUser = await user.safeSave();
+
+      return res.json({
+        success: true,
+        data: updatedUser,
+        message: "Settings updated successfully",
+      });
+    } catch (err) {
+      next(err);
+    }
 router.put("/profile/settings", verifyToken, async (req, res, next) => {
   try {
     const { email, isPrivate, notificationSettings } = req.body;
@@ -171,6 +437,7 @@ router.put("/profile/settings", verifyToken, async (req, res, next) => {
         ? await req.currentUser.safeSave()
         : await UserMock.update(req.userId, req.body);
 
+    const updatedUser = await UserMock.update(req.userId, req.body);
     res.json({
       success: true,
       data: updatedUser,
@@ -181,55 +448,27 @@ router.put("/profile/settings", verifyToken, async (req, res, next) => {
   }
 });
 
-/* =====================================================
-   🤝 FOLLOW / UNFOLLOW (ANTI-IDOR)
-===================================================== */
-router.post(
-  "/profile/:username/follow",
-  verifyToken,
-  async (req, res, next) => {
-    try {
-      const { username } = req.params;
-      const db = req.app.get("dbConnection");
+// Delete profile picture
+router.delete('/profile-picture', verifyToken, invalidateCache(['user-profile::userId']), async (req, res, next) => {
+  try {
+    // Get database connection from app
+    const dbConnection = req.app.get('dbConnection');
 
-      const targetUser = db?.useMongoDB
-        ? await UserMongo.findOne({ username })
-        : await UserMock.findByUsername(username);
+        // 🔥 BOTH VERSION CHECKED
+        await currentUser.safeSave();
+        await targetUser.safeSave();
 
-      if (!targetUser) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found",
+        return res.json({
+          success: true,
+          data: { isFollowing: !isFollowing },
+          message: isFollowing ? "Unfollowed" : "Followed",
         });
       }
-
-      // 🔒 Prevent self-follow
-      if (targetUser._id.toString() === req.userId) {
-        return res.status(400).json({
-          success: false,
-          message: "You cannot follow yourself",
-        });
-      }
-
-      const isFollowing = req.currentUser.following.includes(
-        targetUser._id
-      );
-
-      if (isFollowing) {
-        req.currentUser.following.pull(targetUser._id);
-        targetUser.followers.pull(req.userId);
-      } else {
-        req.currentUser.following.addToSet(targetUser._id);
-        targetUser.followers.addToSet(req.userId);
-      }
-
-      await req.currentUser.safeSave();
-      await targetUser.safeSave();
 
       res.json({
         success: true,
-        data: { isFollowing: !isFollowing },
-        message: isFollowing ? "Unfollowed" : "Followed",
+        data: { isFollowing: true },
+        message: "Follow action completed",
       });
     } catch (err) {
       next(err);
