@@ -44,6 +44,11 @@ const verifyToken = (req, res, next) => {
 // Register a new user
 router.post('/register', registerLimiter, validateRegister, checkValidation, async (req, res, next) => {
   try {
+    console.log('\ud83d\udce5 Registration request received:', { 
+      ...req.body, 
+      password: req.body.password ? '***' : undefined 
+    });
+    
     const { username, email, password, firstName, lastName } = req.body;
 
     // Get database connection from app

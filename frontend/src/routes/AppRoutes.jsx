@@ -45,6 +45,7 @@ const StudyBuddyMatcher = lazy(() => import("../pages/StudyBuddyMatcher.jsx"));
 const InstructorDashboard = lazy(() => import("../pages/InstructorDashboard.jsx"));
 const ResumeBuilder = lazy(() => import("../pages/ResumeBuilder.jsx"));
 const AlumniResumeReview = lazy(() => import("../pages/AlumniResumeReview.jsx"));
+const NotFound = lazy(() => import("../pages/NotFound.jsx"));
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children }) => {
@@ -174,7 +175,7 @@ const AppRoutes = ({
           }
         />
         <Route
-          path="/reels"
+          path="reels"
           element={
             <LazyWrapper>
               <Reels />

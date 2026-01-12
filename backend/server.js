@@ -78,17 +78,22 @@ const startServer = async () => {
     logger.warn('Using file-based database as fallback');
   }
 
-  // Import and register routes
-  app.use('/api/auth', require('./routes/auth'));
-  app.use('/api/users', require('./routes/users'));
-  app.use('/api/messages', require('./routes/messages'));
-  app.use('/api/account', require('./routes/account'));
+  // ------------------
+  // 🔐 ROUTES
+  // ------------------
+  app.use("/api/auth", authLimiter, require("./routes/auth"));
+  app.use("/api/users", require("./routes/users"));
+  app.use("/api/resume", resumeRoutes);
+  app.use("/api/upload", uploadRoutes);
+  app.use("/api/messages", require("./routes/messages"));
+  app.use("/api/account", require("./routes/account"));
+  app.use("/api/notifications", require("./routes/notifications"));
 
-  // 404 Not Found Handler (must be after all routes)
-  app.use(notFound);
-
-  // Global Error Handler (must be last)
-  app.use(errorHandler);
+  // ------------------
+  // ❌ ERROR HANDLERS (VERY IMPORTANT ORDER)
+  // ------------------
+  app.use(notFound);      // 404 handler
+  app.use(errorHandler); // global error handler
 
   // Start the server
   app.listen(PORT, () => {

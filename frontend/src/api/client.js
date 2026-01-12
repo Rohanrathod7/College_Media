@@ -74,7 +74,7 @@ apiClient.interceptors.response.use(
 
     // Check for network errors or offline status
     // Status 0/undefined usually means network error/cors/offline
-    if (!error.response && error.code !== 'ERR_CANCELED') {
+    if (!error.response && error.code !== 'ERR_CANCELED' && error.config) {
       // Import dynamically to avoid circular dependency issues at module level
       const { default: offlineQueue } = await import('../utils/offlineQueue');
       await offlineQueue.add(error.config);
@@ -192,16 +192,16 @@ axiosRetry(apiClient, {
 });
 
 // Add response interceptor to show success after retry
-const originalResponseInterceptor = apiClient.interceptors.response.handlers[0].fulfilled;
+const originalResponseInterceptor = apiClient.interceptors.response.handlers[0]?.fulfilled;
 apiClient.interceptors.response.use(
   (response) => {
     // Show success notification if request succeeded after retry
-    if (response.config.onRetrySuccess) {
+    if (response?.config?.onRetrySuccess) {
       showRetrySuccessNotification();
     }
-    return originalResponseInterceptor(response);
+    return originalResponseInterceptor ? originalResponseInterceptor(response) : response;
   },
-  apiClient.interceptors.response.handlers[0].rejected
+  apiClient.interceptors.response.handlers[0]?.rejected
 );
 
 export default apiClient;
