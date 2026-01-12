@@ -10,38 +10,13 @@ const { sendPasswordResetOTP } = require('../services/emailService');
 const logger = require('../utils/logger');
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'college_media_secret_key';
+const JWT_SECRET = process.env.JWT_SECRET || "college_media_secret_key";
 
-// In-memory OTP storage (use Redis in production)
+// ⚠️ In-memory OTP store
 const otpStore = new Map();
 
-// Middleware to verify JWT token
-const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      data: null,
-      message: 'Access denied. No token provided.'
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      data: null,
-      message: 'Invalid token.'
-    });
-  }
-};
-
-// Register a new user
-router.post('/register', validateRegister, checkValidation, async (req, res, next) => {
+/* ---------------- REGISTER ---------------- */
+router.post("/register", validateRegister, checkValidation, async (req, res, next) => {
   try {
     const { username, email, password, firstName, lastName } = req.body;
 
@@ -62,50 +37,22 @@ router.post('/register', validateRegister, checkValidation, async (req, res, nex
         });
       }
 
-      // Hash the password
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
+    const existingUser = dbConnection?.useMongoDB
+      ? await UserMongo.findOne({ $or: [{ email }, { username }] })
+      : await UserMock.findByEmail(email);
 
-      // Create new user
-      const newUser = new UserMongo({
-        username,
-        email,
-        password: hashedPassword,
-        firstName,
-        lastName
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "User with this email or username already exists",
       });
+    }
 
-      await newUser.save();
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Generate JWT token
-      const token = jwt.sign(
-        { userId: newUser._id },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-
-      res.status(201).json({
-        success: true,
-        data: {
-          id: newUser._id,
-          username: newUser.username,
-          email: newUser.email,
-          firstName: newUser.firstName,
-          lastName: newUser.lastName,
-          token
-        },
-        message: 'User registered successfully'
-      });
-    } else {
-      // Use mock database
-      try {
-        const newUser = await UserMock.create({
-          username,
-          email,
-          password, // password will be hashed in the create function
-          firstName,
-          lastName
-        });
+    const newUser = dbConnection?.useMongoDB
+      ? await UserMongo.create({ username, email, password: hashedPassword, firstName, lastName })
+      : await UserMock.create({ username, email, password: hashedPassword, firstName, lastName });
 
         // Generate JWT token
         const token = jwt.sign(
@@ -172,26 +119,15 @@ router.post('/login', validateLogin, checkValidation, async (req, res, next) => 
         });
       }
 
-      // Generate JWT token
-      const token = jwt.sign(
-        { userId: user._id },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      );
+      // 🔐 CREATE NEW SESSION
+      const sessionId = crypto.randomUUID();
 
-      res.json({
-        success: true,
-        data: {
-          id: user._id,
-          username: user.username,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          profilePicture: user.profilePicture,
-          bio: user.bio,
-          token
-        },
-        message: 'Login successful'
+      await Session.create({
+        userId: user._id,
+        sessionId,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        isActive: true,
       });
     } else {
       // Use mock database
@@ -216,34 +152,30 @@ router.post('/login', validateLogin, checkValidation, async (req, res, next) => 
 
       // Generate JWT token
       const token = jwt.sign(
-        { userId: user._id },
+        {
+          userId: user._id,
+          sessionId,
+        },
         JWT_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn: "7d" }
       );
 
       res.json({
         success: true,
-        data: {
-          id: user._id,
-          username: user.username,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          profilePicture: user.profilePicture,
-          bio: user.bio,
-          token
-        },
-        message: 'Login successful'
+        data: { token },
+        message: "Login successful",
       });
+    } catch (err) {
+      next(err);
     }
   } catch (error) {
     logger.error('Login error:', error);
     next(error); // Pass to error handler
   }
-});
+);
 
-// Forgot password - Send OTP
-router.post('/forgot-password', async (req, res, next) => {
+/* ---------------- FORGOT PASSWORD ---------------- */
+router.post("/forgot-password", otpRequestLimiter, async (req, res, next) => {
   try {
     const { email } = req.body;
 
@@ -265,16 +197,14 @@ router.post('/forgot-password', async (req, res, next) => {
       user = await UserMock.findByEmail(email);
     }
 
-    // Always return success to prevent user enumeration
     if (user) {
-      // Generate 6-digit OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
       // Store OTP with expiration (10 minutes)
       otpStore.set(email, {
         otp,
-        expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
-        userId: user._id || user.id
+        userId: user._id || user.id,
+        expiresAt: Date.now() + 10 * 60 * 1000,
       });
 
       // Try to send email if API key is configured
@@ -294,8 +224,7 @@ router.post('/forgot-password', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: null,
-      message: 'If an account exists with this email, an OTP has been sent.'
+      message: "If an account exists, an OTP has been sent.",
     });
   } catch (error) {
     logger.error('Forgot password error:', error);
@@ -303,8 +232,8 @@ router.post('/forgot-password', async (req, res, next) => {
   }
 });
 
-// Verify OTP
-router.post('/verify-otp', async (req, res, next) => {
+/* ---------------- VERIFY OTP ---------------- */
+router.post("/verify-otp", otpVerifyLimiter, async (req, res, next) => {
   try {
     const { email, otp } = req.body;
 
@@ -345,11 +274,10 @@ router.post('/verify-otp', async (req, res, next) => {
       });
     }
 
-    // OTP is valid - generate a temporary token for password reset
     const resetToken = jwt.sign(
-      { userId: storedData.userId, email },
+      { userId: data.userId },
       JWT_SECRET,
-      { expiresIn: '15m' } // 15 minutes to complete password reset
+      { expiresIn: "15m" }
     );
 
     // Don't delete OTP yet - will delete after password reset
@@ -357,7 +285,7 @@ router.post('/verify-otp', async (req, res, next) => {
     res.json({
       success: true,
       data: { resetToken },
-      message: 'OTP verified successfully'
+      message: "OTP verified successfully",
     });
   } catch (error) {
     logger.error('Verify OTP error:', error);
@@ -365,8 +293,8 @@ router.post('/verify-otp', async (req, res, next) => {
   }
 });
 
-// Reset password with verified token
-router.post('/reset-password', async (req, res, next) => {
+/* ---------------- RESET PASSWORD ---------------- */
+router.post("/reset-password", passwordResetLimiter, async (req, res, next) => {
   try {
     const { resetToken, newPassword, email } = req.body;
 
@@ -390,9 +318,8 @@ router.post('/reset-password', async (req, res, next) => {
       });
     }
 
-    // Hash new password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const dbConnection = req.app.get("dbConnection");
 
     // Get database connection from app
     const dbConnection = req.app.get('dbConnection');
@@ -719,10 +646,7 @@ router.get('/2fa/status', verifyToken, async (req, res, next) => {
 
     res.json({
       success: true,
-      data: {
-        enabled: user.twoFactorEnabled || false
-      },
-      message: '2FA status retrieved'
+      message: "Password reset successful. All sessions revoked.",
     });
   } catch (error) {
     logger.error('Get 2FA status error:', error);

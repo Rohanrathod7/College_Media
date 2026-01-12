@@ -1,11 +1,12 @@
 /**
  * API Client - Centralized Axios Configuration
- * Issue #250: Robust API Integration & Error Handling
+ * Issue #349: Enhanced API Error Handling and Retry Logic
  */
 
 import axios from 'axios';
 import axiosRetry from 'axios-retry';
 import { ApiError, NetworkError, AuthenticationError, ValidationError } from '../utils/apiErrors';
+import { showRetryNotification, showRetrySuccessNotification } from '../utils/apiErrorHandler';
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -71,6 +72,14 @@ apiClient.interceptors.response.use(
       );
     }
 
+    // Check for network errors or offline status
+    // Status 0/undefined usually means network error/cors/offline
+    if (!error.response && error.code !== 'ERR_CANCELED') {
+      // Import dynamically to avoid circular dependency issues at module level
+      const { default: offlineQueue } = await import('../utils/offlineQueue');
+      await offlineQueue.add(error.config);
+    }
+
     // Handle specific error cases
     if (error.response) {
       // Server responded with error status
@@ -88,7 +97,7 @@ apiClient.interceptors.response.use(
           // Unauthorized - Token expired or invalid
           localStorage.removeItem('token');
           window.dispatchEvent(new CustomEvent('auth:logout'));
-          
+
           throw new AuthenticationError(
             data?.message || 'Authentication required. Please login again.'
           );
@@ -139,7 +148,7 @@ apiClient.interceptors.response.use(
     } else if (error.request) {
       // Request made but no response received
       throw new NetworkError(
-        'Network error. Please check your internet connection.'
+        'Network error. Request added to offline queue.'
       );
     } else {
       // Something else happened
@@ -148,7 +157,7 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Configure retry logic with exponential backoff
+// Configure retry logic with exponential backoff and user feedback
 axiosRetry(apiClient, {
   retries: 3,
   retryDelay: axiosRetry.exponentialDelay,
@@ -165,10 +174,34 @@ axiosRetry(apiClient, {
     );
   },
   onRetry: (retryCount, error, requestConfig) => {
-    console.log(
-      `🔄 Retry attempt ${retryCount} for ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`
-    );
+    // Log retry attempt
+    if (import.meta.env.DEV) {
+      console.log(
+        `🔄 Retry attempt ${retryCount}/3 for ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`
+      );
+    }
+
+    // Show user-friendly retry notification
+    showRetryNotification(retryCount, 3);
+
+    // If this is the last retry and it succeeds, show success message
+    if (retryCount === 3) {
+      requestConfig.onRetrySuccess = true;
+    }
   },
 });
+
+// Add response interceptor to show success after retry
+const originalResponseInterceptor = apiClient.interceptors.response.handlers[0].fulfilled;
+apiClient.interceptors.response.use(
+  (response) => {
+    // Show success notification if request succeeded after retry
+    if (response.config.onRetrySuccess) {
+      showRetrySuccessNotification();
+    }
+    return originalResponseInterceptor(response);
+  },
+  apiClient.interceptors.response.handlers[0].rejected
+);
 
 export default apiClient;

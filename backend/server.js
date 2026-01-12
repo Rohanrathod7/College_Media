@@ -11,24 +11,67 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
+// ------------------
+// 🔐 GLOBAL MIDDLEWARES
+// ------------------
+
+// ✅ FIXED: Proper CORS Configuration (Preflight Support)
+const corsOptions = {
+  origin: true, // allow all origins (or frontend URL)
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "X-API-Version",
+  ],
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+
+// ✅ FIXED: Explicitly handle OPTIONS (preflight) requests
+app.options("*", cors(corsOptions));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static file serving for uploaded images
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// ------------------
+// 🔁 API VERSION HANDLING
+// ------------------
+app.use((req, res, next) => {
+  req.apiVersion = req.headers["x-api-version"] || "v1";
+  res.setHeader("X-API-Version", req.apiVersion);
+  next();
+});
 
-// Basic route
-app.get('/', (req, res) => {
+// ------------------
+// ⏱️ RATE LIMITING
+// ------------------
+app.use("/api", slidingWindowLimiter);
+app.use("/api", globalLimiter);
+
+// ------------------
+// 📁 STATIC FILES
+// ------------------
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// ------------------
+// ❤️ HEALTH CHECK
+// ------------------
+app.get("/", (req, res) => {
   res.json({
     success: true,
-    data: null,
-    message: 'College Media API is running!'
+    apiVersion: req.apiVersion,
+    message: "College Media API is running!",
   });
 });
 
-// Initialize database connection and start server
+// ------------------
+// 🚀 START SERVER
+// ------------------
 const startServer = async () => {
   let dbConnection;
 

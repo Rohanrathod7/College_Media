@@ -8,17 +8,18 @@ const logger = require('../utils/logger');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'college_media_secret_key';
+const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || "college_media_secret_key";
 
-// Middleware to verify JWT token
+/* ---------------- JWT VERIFY MIDDLEWARE ---------------- */
 const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1]; // Bearer TOKEN
+  const token = req.headers.authorization?.split(" ")[1];
 
   if (!token) {
     return res.status(401).json({
       success: false,
       data: null,
-      message: 'Access denied. No token provided.'
+      message: "Access denied. No token provided.",
     });
   }
 
@@ -26,48 +27,40 @@ const verifyToken = (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
     next();
-  } catch (error) {
-    res.status(400).json({
+  } catch {
+    return res.status(400).json({
       success: false,
       data: null,
-      message: 'Invalid token.'
+      message: "Invalid token.",
     });
   }
 };
 
-/**
- * @route   POST /api/messages
- * @desc    Send a new message
- * @access  Private
- */
-router.post('/', verifyToken, validateMessage, checkValidation, async (req, res) => {
+/* ======================
+   SEND MESSAGE
+====================== */
+router.post("/", verifyToken, validateMessage, checkValidation, async (req, res) => {
   try {
     const { receiver, content, messageType, attachmentUrl } = req.body;
-    const dbConnection = req.app.get('dbConnection');
-    const useMongoDB = dbConnection?.useMongoDB;
+    const useMongoDB = req.app.get("dbConnection")?.useMongoDB;
 
-    // Check if receiver exists
-    let receiverUser;
-    if (useMongoDB) {
-      receiverUser = await UserMongo.findById(receiver);
-    } else {
-      receiverUser = await UserMock.findById(receiver);
-    }
+    const receiverUser = useMongoDB
+      ? await UserMongo.findById(receiver)
+      : await UserMock.findById(receiver);
 
     if (!receiverUser) {
       return res.status(404).json({
         success: false,
         data: null,
-        message: 'Receiver not found'
+        message: "Receiver not found",
       });
     }
 
-    // Prevent sending message to yourself
     if (receiver === req.userId) {
       return res.status(400).json({
         success: false,
         data: null,
-        message: 'Cannot send message to yourself'
+        message: "Cannot send message to yourself",
       });
     }
 
@@ -75,55 +68,50 @@ router.post('/', verifyToken, validateMessage, checkValidation, async (req, res)
       sender: req.userId,
       receiver,
       content,
-      messageType: messageType || 'text',
-      attachmentUrl: attachmentUrl || null
+      messageType: messageType || "text",
+      attachmentUrl: attachmentUrl || null,
     };
 
     let message;
     if (useMongoDB) {
       const conversationId = MessageMongo.generateConversationId(req.userId, receiver);
       message = await MessageMongo.create({ ...messageData, conversationId });
-      message = await message.populate('sender', 'username firstName lastName profilePicture');
-      message = await message.populate('receiver', 'username firstName lastName profilePicture');
+      message = await message.populate("sender receiver", "username firstName lastName profilePicture");
     } else {
       message = await MessageMock.create(messageData);
     }
 
     res.status(201).json({
       success: true,
-      data: message,
-      message: 'Message sent successfully'
+      data: message,            // 🔙 old clients
+      payload: message,         // 🆕 new clients
+      meta: { apiVersion: req.apiVersion },
+      message: "Message sent successfully",
     });
   } catch (error) {
     logger.error('Send message error:', error);
     res.status(500).json({
       success: false,
       data: null,
-      message: 'Error sending message'
+      message: "Error sending message",
     });
   }
 });
 
-/**
- * @route   GET /api/messages/conversations
- * @desc    Get all conversations for the authenticated user
- * @access  Private
- */
-router.get('/conversations', verifyToken, async (req, res) => {
+/* ======================
+   GET CONVERSATIONS
+====================== */
+router.get("/conversations", verifyToken, async (req, res) => {
   try {
-    const dbConnection = req.app.get('dbConnection');
-    const useMongoDB = dbConnection?.useMongoDB;
-
+    const useMongoDB = req.app.get("dbConnection")?.useMongoDB;
     let conversations = [];
 
     if (useMongoDB) {
-      // Get all messages where user is sender or receiver
       const messages = await MessageMongo.find({
         $or: [{ sender: req.userId }, { receiver: req.userId }],
-        deletedBy: { $nin: [req.userId] }
+        deletedBy: { $nin: [req.userId] },
       })
-        .populate('sender', 'username firstName lastName profilePicture')
-        .populate('receiver', 'username firstName lastName profilePicture')
+        .populate("sender receiver", "username firstName lastName profilePicture")
         .sort({ createdAt: -1 });
 
       // Group by conversation
@@ -142,7 +130,6 @@ router.get('/conversations', verifyToken, async (req, res) => {
             otherUser,
             lastMessage: msg,
             unreadCount: 0,
-            messages: []
           });
         }
 
@@ -340,25 +327,25 @@ router.put('/:messageId/read', verifyToken, validateMessageId, checkValidation, 
 
     res.json({
       success: true,
-      data: message,
-      message: 'Message marked as read'
+      data: conversations,        // 🔙 old
+      payload: conversations,     // 🆕 new
+      meta: { apiVersion: req.apiVersion },
+      message: "Conversations retrieved successfully",
     });
   } catch (error) {
     logger.error('Mark message as read error:', error);
     res.status(500).json({
       success: false,
       data: null,
-      message: 'Error marking message as read'
+      message: "Error retrieving conversations",
     });
   }
 });
 
-/**
- * @route   DELETE /api/messages/:messageId
- * @desc    Delete a message (soft delete for user)
- * @access  Private
- */
-router.delete('/:messageId', verifyToken, validateMessageId, checkValidation, async (req, res) => {
+/* ======================
+   GET UNREAD COUNT
+====================== */
+router.get("/unread/count", verifyToken, async (req, res) => {
   try {
     const { messageId } = req.params;
     const dbConnection = req.app.get('dbConnection');
@@ -528,15 +515,17 @@ router.put('/conversation/:userId/read-all', verifyToken, async (req, res) => {
 
     res.json({
       success: true,
-      data: null,
-      message: 'All messages marked as read'
+      data: { unreadCount },          // 🔙 old
+      payload: { unreadCount },       // 🆕 new
+      meta: { apiVersion: req.apiVersion },
+      message: "Unread count retrieved successfully",
     });
   } catch (error) {
     logger.error('Mark all as read error:', error);
     res.status(500).json({
       success: false,
       data: null,
-      message: 'Error marking messages as read'
+      message: "Error retrieving unread count",
     });
   }
 });
