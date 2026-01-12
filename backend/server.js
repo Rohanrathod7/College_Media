@@ -32,14 +32,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* ---------- Feature Flag Validation ---------- */
-(() => {
-  Object.entries(FEATURE_FLAGS).forEach(([k, v]) => {
-    if (typeof v !== "boolean") {
-      logger.critical("Invalid feature flag", { k, v });
-      process.exit(1);
-    }
-  });
+// Apply global rate limiter
+// conditional check for test environment to avoid rate limits during testing
+if (process.env.NODE_ENV !== 'test') {
+  app.use(globalLimiter);
+}
 
 // Apply input sanitization (XSS & NoSQL injection protection)
 app.use(sanitizeAll);
@@ -115,93 +112,47 @@ app.get("/", (req, res) => {
   });
 });
 
-/* ------------------
-   🚀 START SERVER
------------------- */
-let dbConnection = null;
+// Import and register routes
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/messages', require('./routes/messages'));
+app.use('/api/account', require('./routes/account'));
 
-const startServer = async () => {
+// 404 Not Found Handler (must be after all routes)
+app.use(notFound);
+
+// Global Error Handler (must be last)
+app.use(errorHandler);
+
+// Initialize database connection
+const connectDB = async () => {
+  let dbConnection;
   try {
-    dbConnection = await initDB();
-    logger.info("Database connected");
-  } catch (err) {
-    logger.critical("DB connection failed", { error: err.message });
-    process.exit(1);
-  }
+    // Check if we are in test environment and using memory server
+    // In test env, db connection might be handled by test setup, OR we can init it here
+    // simpler to let test setup handle connection if it uses memory-server
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
 
-  /* 🔥 CACHE WARM-UP (NON-BLOCKING) */
-  setImmediate(() => {
-    warmUpCache({
-      User: require("./models/User"),
-      Resume: require("./models/Resume"),
+    dbConnection = await initDB();
+    app.set('dbConnection', dbConnection);
+    logger.info('Database initialized successfully');
+  } catch (error) {
+    logger.error('Database initialization error:', error);
+    dbConnection = { useMongoDB: false, mongoose: null };
+    app.set('dbConnection', dbConnection);
+    logger.warn('Using file-based database as fallback');
+  }
+};
+
+// Start server only if run directly
+if (require.main === module) {
+  connectDB().then(() => {
+    app.listen(PORT, () => {
+      logger.info(`Server is running on port ${PORT}`);
     });
   });
+}
 
-  /* ---------- ROUTES ---------- */
-  app.use("/api/auth", authLimiter, require("./routes/auth"));
-  app.use("/api/users", require("./routes/users"));
-
-  if (FEATURE_FLAGS.ENABLE_EXPERIMENTAL_RESUME) {
-    app.use("/api/resume", resumeRoutes);
-  }
-
-  app.use("/api/upload", uploadRoutes);
-
-  if (FEATURE_FLAGS.ENABLE_NEW_MESSAGING_FLOW) {
-    app.use("/api/messages", require("./routes/messages"));
-  }
-
-  app.use("/api/account", require("./routes/account"));
-  app.use("/api/notifications", require("./routes/notifications"));
-
-  app.use(notFound);
-  app.use(errorHandler);
-
-  /* ---------- SERVER TIMEOUT TUNING ---------- */
-  server.keepAliveTimeout = 120000;
-  server.headersTimeout = 130000;
-  server.requestTimeout = 0;
-
-  server.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT}`);
-  });
-};
-
-/* ------------------
-   🧹 GRACEFUL SHUTDOWN
------------------- */
-const shutdown = async (signal) => {
-  logger.warn("Shutdown signal", { signal });
-
-  server.close(async () => {
-    if (dbConnection?.mongoose) {
-      await dbConnection.mongoose.connection.close(false);
-    }
-    process.exit(0);
-  });
-
-  setTimeout(() => process.exit(1), 10000);
-};
-
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
-
-/* ------------------
-   🧨 PROCESS SAFETY
------------------- */
-process.on("unhandledRejection", (reason) => {
-  logger.critical("Unhandled Rejection", { reason });
-});
-
-process.on("uncaughtException", (err) => {
-  logger.critical("Uncaught Exception", {
-    message: err.message,
-    stack: err.stack,
-  });
-  process.exit(1);
-});
-
-/* ------------------
-   ▶️ BOOTSTRAP
------------------- */
-startServer();
+module.exports = app;
