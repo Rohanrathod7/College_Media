@@ -11,6 +11,25 @@ const { globalLimiter } = require('./middleware/rateLimitMiddleware');
 const { sanitizeAll, validateContentType, preventParameterPollution } = require('./middleware/sanitizationMiddleware');
 require('./utils/redisClient'); // Initialize Redis client
 
+/* ------------------
+   🔧 INTERNAL IMPORTS
+------------------ */
+const { initDB } = require("./config/db");
+const { notFound, errorHandler } = require("./middleware/errorMiddleware");
+const resumeRoutes = require("./routes/resume");
+const uploadRoutes = require("./routes/upload");
+const { globalLimiter, authLimiter } = require("./middleware/rateLimiter");
+const { slidingWindowLimiter } = require("./middleware/slidingWindowLimiter");
+const { warmUpCache } = require("./utils/cache");
+const logger = require("./utils/logger");
+
+// 🔍 Observability & Metrics
+const metricsMiddleware = require("./middleware/metrics.middleware");
+const { client: metricsClient } = require("./utils/metrics");
+
+/* ------------------
+   🌱 ENV SETUP
+------------------ */
 dotenv.config();
 
 const ENV = process.env.NODE_ENV || "development";
@@ -41,11 +60,39 @@ if (process.env.NODE_ENV !== 'test') {
 // Apply input sanitization (XSS & NoSQL injection protection)
 app.use(sanitizeAll);
 
-// Validate Content-Type for POST/PUT/PATCH requests
-app.use(validateContentType);
+  logger.info("Feature flags loaded", { env: ENV, FEATURE_FLAGS });
+})();
+/* ------------------
+   📈 PROMETHEUS METRICS
+------------------ */
+app.get("/metrics", async (req, res) => {
+  try {
+    res.set("Content-Type", metricsClient.register.contentType);
+    res.end(await metricsClient.register.metrics());
+  } catch (err) {
+    logger.error("Metrics endpoint failed", { error: err.message });
+    res.status(500).json({
+      success: false,
+      message: "Failed to load metrics",
+    });
+  }
+});
+/* ------------------
+   🌍 CORS
+------------------ */
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  })
+);
 
-// Prevent parameter pollution
-app.use(preventParameterPollution(['tags', 'categories'])); // Allow arrays for specific params
+/* ------------------
+   📦 BODY PARSERS
+------------------ */
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
 // Static file serving for uploaded images
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
