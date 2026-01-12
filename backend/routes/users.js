@@ -61,10 +61,6 @@ if (!fs.existsSync("uploads/")) fs.mkdirSync("uploads/");
 
 /* =====================================================
    👤 GET CURRENT USER PROFILE
-===================================================== */
-router.get("/profile", verifyToken, async (req, res, next) => {
-  try {
-    const db = req.app.get("dbConnection");
 
     if (db?.useMongoDB) {
       const user = await UserMongo.findById(req.userId).select(
@@ -90,36 +86,6 @@ router.get("/profile", verifyToken, async (req, res, next) => {
 
 /* =====================================================
    ✏️ UPDATE PROFILE (CONCURRENT SAFE)
-===================================================== */
-router.put(
-  "/profile",
-  verifyToken,
-  validateProfileUpdate,
-  checkValidation,
-  async (req, res, next) => {
-    try {
-      const { firstName, lastName, bio } = req.body;
-      const db = req.app.get("dbConnection");
-
-      if (db?.useMongoDB) {
-        // ✅ SAFE READ → MODIFY → SAVE
-        const user = await UserMongo.findById(req.userId);
-        if (!user)
-          return res
-            .status(404)
-            .json({ success: false, message: "User not found" });
-
-        user.firstName = firstName;
-        user.lastName = lastName;
-        user.bio = bio;
-
-        // 🔥 OPTIMISTIC LOCKING HERE
-        const updatedUser = await user.safeSave();
-
-        return res.json({
-          success: true,
-          data: updatedUser,
-          message: "Profile updated successfully",
         });
       }
 

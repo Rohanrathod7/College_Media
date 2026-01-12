@@ -172,6 +172,7 @@ const startServer = async () => {
   app.use("/api/upload", uploadRoutes);
   app.use("/api/messages", require("./routes/messages"));
   app.use("/api/account", require("./routes/account"));
+  app.use("/api/notifications", require("./routes/notifications"));
 
   /* ------------------
      ❌ ERROR HANDLING
