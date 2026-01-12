@@ -3,7 +3,9 @@
  * Handles 404 and application errors consistently
  */
 
-// ❌ 404 - Route Not Found Handler
+const logger = require('../utils/logger');
+
+// 404 Not Found Handler
 const notFound = (req, res, next) => {
   res.status(404).json({
     success: false,

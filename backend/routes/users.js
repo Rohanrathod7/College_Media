@@ -6,8 +6,13 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
+const logger = require('../utils/logger');
+const { apiLimiter } = require('../middleware/rateLimitMiddleware');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'college_media_secret_key';
+
+// Apply general rate limiter to all user routes
+router.use(apiLimiter);
 
 // Middleware to verify JWT token
 const verifyToken = (req, res, next) => {
@@ -44,7 +49,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
@@ -63,7 +68,7 @@ router.get('/profile', verifyToken, async (req, res, next) => {
   try {
     // Get database connection from app
     const dbConnection = req.app.get('dbConnection');
-    
+
     if (dbConnection && dbConnection.useMongoDB) {
       // Use MongoDB
       const user = await UserMongo.findById(req.userId).select('-password');
@@ -98,7 +103,7 @@ router.get('/profile', verifyToken, async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('Get profile error:', error);
+    logger.error('Get profile error:', error);
     next(error);
   }
 });
@@ -107,10 +112,10 @@ router.get('/profile', verifyToken, async (req, res, next) => {
 router.put('/profile', verifyToken, validateProfileUpdate, checkValidation, async (req, res, next) => {
   try {
     const { firstName, lastName, bio } = req.body;
-    
+
     // Get database connection from app
     const dbConnection = req.app.get('dbConnection');
-    
+
     if (dbConnection && dbConnection.useMongoDB) {
       // Use MongoDB
       const updatedUser = await UserMongo.findByIdAndUpdate(
@@ -154,7 +159,7 @@ router.put('/profile', verifyToken, validateProfileUpdate, checkValidation, asyn
       });
     }
   } catch (error) {
-    console.error('Update profile error:', error);
+    logger.error('Update profile error:', error);
     next(error);
   }
 });
@@ -169,10 +174,10 @@ router.post('/profile-picture', verifyToken, upload.single('profilePicture'), as
         message: 'No file uploaded'
       });
     }
-    
+
     // Get database connection from app
     const dbConnection = req.app.get('dbConnection');
-    
+
     if (dbConnection && dbConnection.useMongoDB) {
       // Use MongoDB
       const updatedUser = await UserMongo.findByIdAndUpdate(
@@ -220,7 +225,7 @@ router.post('/profile-picture', verifyToken, upload.single('profilePicture'), as
       });
     }
   } catch (error) {
-    console.error('Upload profile picture error:', error);
+    logger.error('Upload profile picture error:', error);
     next(error);
   }
 });
@@ -229,10 +234,10 @@ router.post('/profile-picture', verifyToken, upload.single('profilePicture'), as
 router.get('/profile/:username', verifyToken, async (req, res, next) => {
   try {
     const { username } = req.params;
-    
+
     // Get database connection from app
     const dbConnection = req.app.get('dbConnection');
-    
+
     if (dbConnection && dbConnection.useMongoDB) {
       // Use MongoDB
       const user = await UserMongo.findOne({ username }).select('-password -email');
@@ -270,7 +275,7 @@ router.get('/profile/:username', verifyToken, async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('Get user profile error:', error);
+    logger.error('Get user profile error:', error);
     next(error);
   }
 });
@@ -279,10 +284,10 @@ router.get('/profile/:username', verifyToken, async (req, res, next) => {
 router.get('/profile/:username/posts', verifyToken, async (req, res, next) => {
   try {
     const { username } = req.params;
-    
+
     // Get database connection from app
     const dbConnection = req.app.get('dbConnection');
-    
+
     if (dbConnection && dbConnection.useMongoDB) {
       // Use MongoDB - You'll need to create a Post model
       const user = await UserMongo.findOne({ username });
@@ -326,7 +331,7 @@ router.get('/profile/:username/posts', verifyToken, async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('Get user posts error:', error);
+    logger.error('Get user posts error:', error);
     next(error);
   }
 });
@@ -335,15 +340,15 @@ router.get('/profile/:username/posts', verifyToken, async (req, res, next) => {
 router.put('/profile/settings', verifyToken, async (req, res, next) => {
   try {
     const { email, isPrivate, notificationSettings } = req.body;
-    
+
     // Get database connection from app
     const dbConnection = req.app.get('dbConnection');
-    
+
     const updateData = {};
     if (email) updateData.email = email;
     if (typeof isPrivate !== 'undefined') updateData.isPrivate = isPrivate;
     if (notificationSettings) updateData.notificationSettings = notificationSettings;
-    
+
     if (dbConnection && dbConnection.useMongoDB) {
       // Use MongoDB
       const updatedUser = await UserMongo.findByIdAndUpdate(
@@ -384,7 +389,7 @@ router.put('/profile/settings', verifyToken, async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('Update settings error:', error);
+    logger.error('Update settings error:', error);
     next(error);
   }
 });
@@ -394,7 +399,7 @@ router.get('/profile/stats', verifyToken, async (req, res, next) => {
   try {
     // Get database connection from app
     const dbConnection = req.app.get('dbConnection');
-    
+
     if (dbConnection && dbConnection.useMongoDB) {
       // Use MongoDB
       const user = await UserMongo.findById(req.userId);
@@ -433,7 +438,7 @@ router.get('/profile/stats', verifyToken, async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('Get stats error:', error);
+    logger.error('Get stats error:', error);
     next(error);
   }
 });
@@ -442,10 +447,10 @@ router.get('/profile/stats', verifyToken, async (req, res, next) => {
 router.post('/profile/:username/follow', verifyToken, async (req, res, next) => {
   try {
     const { username } = req.params;
-    
+
     // Get database connection from app
     const dbConnection = req.app.get('dbConnection');
-    
+
     if (dbConnection && dbConnection.useMongoDB) {
       // Use MongoDB
       const targetUser = await UserMongo.findOne({ username });
@@ -499,7 +504,7 @@ router.post('/profile/:username/follow', verifyToken, async (req, res, next) => 
       });
     }
   } catch (error) {
-    console.error('Follow/Unfollow error:', error);
+    logger.error('Follow/Unfollow error:', error);
     next(error);
   }
 });
@@ -509,7 +514,7 @@ router.delete('/profile-picture', verifyToken, async (req, res, next) => {
   try {
     // Get database connection from app
     const dbConnection = req.app.get('dbConnection');
-    
+
     if (dbConnection && dbConnection.useMongoDB) {
       // Use MongoDB
       const updatedUser = await UserMongo.findByIdAndUpdate(
@@ -542,7 +547,7 @@ router.delete('/profile-picture', verifyToken, async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('Delete profile picture error:', error);
+    logger.error('Delete profile picture error:', error);
     next(error);
   }
 });
