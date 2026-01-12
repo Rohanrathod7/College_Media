@@ -201,54 +201,35 @@ const startServer = async () => {
   app.use("/api/messages", require("./routes/messages"));
   app.use("/api/account", require("./routes/account"));
 
-  app.use(notFound);
-  app.use(errorHandler);
-
-  /* ---------- SERVER TIMEOUT TUNING ---------- */
-  server.keepAliveTimeout = 120000;
-  server.headersTimeout = 130000;
-  server.requestTimeout = 0;
-
-  server.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT}`);
-  });
-};
-
-/* ------------------
-   🧹 GRACEFUL SHUTDOWN
------------------- */
-const shutdown = async (signal) => {
-  logger.warn("Shutdown signal", { signal });
-
-  server.close(async () => {
-    if (dbConnection?.mongoose) {
-      await dbConnection.mongoose.connection.close(false);
+// Initialize database connection
+const connectDB = async () => {
+  let dbConnection;
+  try {
+    // Check if we are in test environment and using memory server
+    // In test env, db connection might be handled by test setup, OR we can init it here
+    // simpler to let test setup handle connection if it uses memory-server
+    if (process.env.NODE_ENV === 'test') {
+      return;
     }
-    process.exit(0);
-  });
 
-  setTimeout(() => process.exit(1), 10000);
+    dbConnection = await initDB();
+    app.set('dbConnection', dbConnection);
+    logger.info('Database initialized successfully');
+  } catch (error) {
+    logger.error('Database initialization error:', error);
+    dbConnection = { useMongoDB: false, mongoose: null };
+    app.set('dbConnection', dbConnection);
+    logger.warn('Using file-based database as fallback');
+  }
 };
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
-
-/* ------------------
-   🧨 PROCESS SAFETY
------------------- */
-process.on("unhandledRejection", (reason) => {
-  logger.critical("Unhandled Rejection", { reason });
-});
-
-process.on("uncaughtException", (err) => {
-  logger.critical("Uncaught Exception", {
-    message: err.message,
-    stack: err.stack,
+// Start server only if run directly
+if (require.main === module) {
+  connectDB().then(() => {
+    app.listen(PORT, () => {
+      logger.info(`Server is running on port ${PORT}`);
+    });
   });
-  process.exit(1);
-});
+}
 
-/* ------------------
-   ▶️ BOOTSTRAP
------------------- */
-startServer();
+module.exports = app;
