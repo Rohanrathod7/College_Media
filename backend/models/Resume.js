@@ -7,10 +7,27 @@ const resumeSchema = new mongoose.Schema({
     required: true
   },
   content: {
-    experience: [Object],
-    education: [Object],
+    experience: [{
+      title: String,
+      company: String,
+      duration: String,
+      description: String
+    }],
+    education: [{
+      degree: String,
+      institution: String,
+      year: String,
+      gpa: String
+    }],
     skills: [String],
-    // Add more fields
+    projects: [{
+      title: String,
+      description: String,
+      link: String
+    }]
+  },
+  summary: {
+    type: String
   },
   fileUrl: {
     type: String
@@ -19,6 +36,10 @@ const resumeSchema = new mongoose.Schema({
     type: String,
     enum: ['draft', 'submitted', 'reviewed'],
     default: 'draft'
+  },
+  aiGenerated: {
+    type: Boolean,
+    default: false
   },
   assignedAlumni: {
     type: mongoose.Schema.Types.ObjectId,

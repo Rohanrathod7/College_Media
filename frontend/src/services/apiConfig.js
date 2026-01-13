@@ -6,7 +6,7 @@
 const API_CONFIG = {
   // Base URLs for different environments
   BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
-  TIMEOUT: 30000, // 30 seconds
+  TIMEOUT: 60000, // 60 seconds (AI calls can take longer)
   
   // API version
   VERSION: 'v1',
