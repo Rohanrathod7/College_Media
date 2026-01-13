@@ -101,6 +101,7 @@ const startServer = async () => {
   app.use("/api/account", require("./routes/account"));
   app.use("/api/notifications", require("./routes/notifications"));
   app.use("/api/alumni", require("./routes/alumni"));
+  app.use("/api/posts", require("./routes/posts"));
 
   // ------------------
   // ❌ ERROR HANDLERS (VERY IMPORTANT ORDER)
