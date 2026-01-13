@@ -13,6 +13,7 @@ const logger = require('../utils/logger');
 const { sensitiveLimiter, apiLimiter } = require('../middleware/rateLimitMiddleware');
 const { isValidPassword } = require('../utils/validators');
 const ActivityLog = require('../models/ActivityLog');
+const ExportService = require('../services/exportService');
 const { checkPermission, PERMISSIONS } = require('../middleware/rbacMiddleware');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'college_media_secret_key';
@@ -155,6 +156,70 @@ router.get('/audit-log', verifyToken, checkPermission(PERMISSIONS.VIEW_LOGS), as
       data: null,
       message: 'Failed to retrieve audit log'
     });
+  }
+});
+
+/**
+ * @swagger
+ * /api/account/export:
+ *   post:
+ *     summary: Request data export
+ *     tags: [Account]
+ *     parameters:
+ *       - in: body
+ *         name: format
+ *         schema: { type: string, enum: [pdf, csv] }
+ */
+router.post('/export', verifyToken, sensitiveLimiter, async (req, res) => {
+  try {
+    const { format = 'pdf' } = req.body;
+    const result = await ExportService.requestExport(req.userId, format);
+
+    res.status(202).json({
+      success: true,
+      data: result,
+      message: 'Export started. Check status/download later.'
+    });
+  } catch (error) {
+    logger.error('Export request error:', error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/account/export/{jobId}:
+ *   get:
+ *     summary: Get export job status
+ *     tags: [Account]
+ */
+router.get('/export/:jobId', verifyToken, async (req, res) => {
+  try {
+    const status = await ExportService.getExportStatus(req.params.jobId);
+    if (!status) return res.status(404).json({ success: false, message: 'Job not found' });
+
+    res.json({ success: true, data: status });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Status check failed' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/account/export/{jobId}/download:
+ *   get:
+ *     summary: Download exported file
+ *     tags: [Account]
+ */
+router.get('/export/:jobId/download', verifyToken, async (req, res) => {
+  try {
+    const filePath = await ExportService.getExportFilePath(req.params.jobId);
+    if (!filePath) return res.status(404).json({ success: false, message: 'File not ready or expired' });
+
+    res.download(filePath);
+  } catch (error) {
+    logger.error('Download error:', error);
+    res.status(500).json({ success: false, message: 'Download failed' });
   }
 });
 
