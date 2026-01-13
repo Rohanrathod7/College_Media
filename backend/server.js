@@ -212,20 +212,13 @@ app.get("/", (req, res) => {
 setupSwagger(app);
 
 // Import and register routes
-const { versionMiddleware } = require('./middleware/versionMiddleware');
-
-// Mount v1 routes
-app.use('/api/v1', require('./routes/v1'));
-
-// Mount v2 routes
-app.use('/api/v2', require('./routes/v2'));
-
-// Legacy routes (aliased to v1, marked as deprecated)
-app.use('/api', versionMiddleware({
-  deprecation: true,
-  sunset: '2026-12-31T23:59:59Z',
-  link: 'https://github.com/SatyamPandey-07/College_Media/wiki/API-Deprecation'
-}), require('./routes/v1'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/posts', require('./routes/posts'));
+app.use('/api/messages', require('./routes/messages'));
+app.use('/api/account', require('./routes/account'));
+app.use('/api/search', require('./routes/search'));
+app.use('/api/moderation', require('./routes/moderation'));
 
 // 404 Not Found Handler (must be after all routes)
 app.use(notFound);
