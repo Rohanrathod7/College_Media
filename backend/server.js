@@ -85,6 +85,9 @@ app.use('/api', versionMiddleware({
   link: 'https://github.com/SatyamPandey-07/College_Media/wiki/API-Deprecation'
 }), require('./routes/v1'));
 
+// Admin routes (not versioned)
+app.use('/api/admin', require('./routes/admin'));
+
 // 404 Not Found Handler (must be after all routes)
 app.use(notFound);
 
@@ -117,6 +120,13 @@ const connectDB = async () => {
 if (require.main === module) {
   connectDB().then(() => {
     initSocket(server);
+
+    // Start scheduler (only in production, not during tests)
+    if (process.env.NODE_ENV !== 'test') {
+      const scheduler = require('./jobs/scheduler');
+      scheduler.start();
+    }
+
     server.listen(PORT, () => {
       logger.info(`Server is running on port ${PORT}`);
     });
