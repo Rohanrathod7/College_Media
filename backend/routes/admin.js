@@ -106,4 +106,104 @@ router.post('/tasks/:name/disable', verifyToken, checkPermission(PERMISSIONS.MAN
     }
 });
 
+// ============== ANALYTICS ENDPOINTS ==============
+const AnalyticsService = require('../services/analyticsService');
+
+/**
+ * @swagger
+ * /api/admin/analytics/dashboard:
+ *   get:
+ *     summary: Get dashboard overview with key metrics
+ *     tags: [Admin]
+ */
+router.get('/analytics/dashboard', verifyToken, checkPermission(PERMISSIONS.VIEW_LOGS), async (req, res) => {
+    try {
+        const overview = await AnalyticsService.getDashboardOverview();
+        res.json({
+            success: true,
+            data: overview,
+            message: 'Dashboard overview retrieved'
+        });
+    } catch (error) {
+        logger.error('Get dashboard error:', error);
+        res.status(500).json({ success: false, message: 'Failed to get dashboard' });
+    }
+});
+
+/**
+ * @swagger
+ * /api/admin/analytics/metrics:
+ *   get:
+ *     summary: Get metrics for a date range
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: endDate
+ *         schema: { type: string, format: date }
+ */
+router.get('/analytics/metrics', verifyToken, checkPermission(PERMISSIONS.VIEW_LOGS), async (req, res) => {
+    try {
+        const { startDate, endDate, granularity = 'daily' } = req.query;
+
+        // Default to last 30 days if no dates provided
+        const end = endDate ? new Date(endDate) : new Date();
+        const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        const result = await AnalyticsService.getMetrics(start, end, granularity);
+        res.json({
+            success: true,
+            data: result,
+            message: 'Metrics retrieved'
+        });
+    } catch (error) {
+        logger.error('Get metrics error:', error);
+        res.status(500).json({ success: false, message: 'Failed to get metrics' });
+    }
+});
+
+/**
+ * @swagger
+ * /api/admin/analytics/health:
+ *   get:
+ *     summary: Get real-time system health metrics
+ *     tags: [Admin]
+ */
+router.get('/analytics/health', verifyToken, checkPermission(PERMISSIONS.VIEW_LOGS), async (req, res) => {
+    try {
+        const health = await AnalyticsService.getSystemHealth();
+        res.json({
+            success: true,
+            data: health,
+            message: 'System health retrieved'
+        });
+    } catch (error) {
+        logger.error('Get health error:', error);
+        res.status(500).json({ success: false, message: 'Failed to get health' });
+    }
+});
+
+/**
+ * @swagger
+ * /api/admin/analytics/refresh:
+ *   post:
+ *     summary: Manually trigger metrics calculation
+ *     tags: [Admin]
+ */
+router.post('/analytics/refresh', verifyToken, checkPermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+    try {
+        const metric = await AnalyticsService.calculateDailyMetrics();
+        res.json({
+            success: true,
+            data: metric,
+            message: 'Metrics refreshed successfully'
+        });
+    } catch (error) {
+        logger.error('Refresh metrics error:', error);
+        res.status(500).json({ success: false, message: 'Failed to refresh metrics' });
+    }
+});
+
 module.exports = router;
