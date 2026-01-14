@@ -1,8 +1,14 @@
 const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const pdfParse = require('pdf-parse');
+const Tesseract = require('tesseract.js');
+const { pdfToPng } = require('pdf-to-png-converter');
+const path = require('path');
 
 /**
- * PDF Service for Resume Generation
+ * PDF Service for Resume Generation and Text Extraction
  * Creates professional PDF resumes with proper formatting
+ * Extracts text from PDF files for analysis
  */
 
 class PDFService {
@@ -256,6 +262,125 @@ class PDFService {
          { align: 'center' }
        );
   }
+
+  /**
+   * Extract text from PDF file
+   * @param {string} filePath - Path to the PDF file
+   * @returns {Promise<string>} Extracted text content
+   */
+  async extractTextFromPDF(filePath) {
+    let resumeText = '';
+    
+    // First attempt: pdf-parse for text-based PDFs
+    try {
+      console.log('📄 Attempting text extraction from PDF...');
+      const dataBuffer = fs.readFileSync(filePath);
+      const data = await pdfParse(dataBuffer);
+      
+      resumeText = data.text ? data.text.trim() : '';
+      console.log(`✅ Extracted ${resumeText.length} characters using pdf-parse`);
+    } catch (error) {
+      console.warn('⚠️ pdf-parse failed:', error.message);
+      resumeText = '';
+    }
+    
+    // If we got enough text, return it
+    if (resumeText && resumeText.length > 50) {
+      console.log('✅ PDF text extraction successful');
+      return resumeText;
+    }
+    
+    // Second attempt: Tesseract OCR for scanned/image-based PDFs
+    console.log('🔄 Text extraction yielded minimal content, falling back to Tesseract OCR...');
+    try {
+      resumeText = await this.extractTextWithTesseract(filePath);
+      return resumeText;
+    } catch (ocrError) {
+      console.error('❌ Tesseract OCR also failed:', ocrError.message);
+      throw new Error('We couldn\'t read text from the uploaded resume. Please upload a text-based PDF (not scanned) or try exporting your resume again from Word or Google Docs.');
+    }
+  }
+
+  /**
+   * Extract text from PDF using Tesseract OCR
+   * @param {string} filePath - Path to the PDF file
+   * @returns {Promise<string>} Extracted text content
+   */
+  async extractTextWithTesseract(filePath) {
+    try {
+      console.log('🔍 Starting Tesseract OCR text extraction...');
+      console.log('📁 PDF file path:', filePath);
+      
+      // Verify file exists
+      if (!fs.existsSync(filePath)) {
+        throw new Error('PDF file not found at path: ' + filePath);
+      }
+      
+      // Convert PDF to PNG images
+      console.log('🔄 Converting PDF to PNG images...');
+      const pngPages = await pdfToPng(filePath, {
+        disableFontFace: false,
+        useSystemFonts: false,
+        viewportScale: 2.0
+      });
+
+      console.log(`📸 PDF converted to ${pngPages.length} image(s)`);
+
+      if (!pngPages || pngPages.length === 0) {
+        throw new Error('Failed to convert PDF to images');
+      }
+
+      let fullText = '';
+
+      // Process each page with Tesseract
+      for (let i = 0; i < pngPages.length; i++) {
+        console.log(`🔍 Processing page ${i + 1}/${pngPages.length} with OCR...`);
+        
+        // Save image temporarily for Tesseract (it needs a file path)
+        const tempImagePath = path.join(path.dirname(filePath), `temp-page-${i}-${Date.now()}.png`);
+        fs.writeFileSync(tempImagePath, pngPages[i].content);
+        
+        try {
+          const { data: { text } } = await Tesseract.recognize(
+            tempImagePath,
+            'eng',
+            {
+              logger: info => {
+                if (info.status === 'recognizing text') {
+                  console.log(`   OCR Progress: ${Math.round(info.progress * 100)}%`);
+                }
+              }
+            }
+          );
+
+          fullText += text + '\n\n';
+          
+          // Clean up temp image
+          fs.unlinkSync(tempImagePath);
+        } catch (ocrError) {
+          // Clean up temp image even if OCR fails
+          if (fs.existsSync(tempImagePath)) {
+            fs.unlinkSync(tempImagePath);
+          }
+          throw ocrError;
+        }
+      }
+
+      console.log(`✅ Tesseract OCR extracted ${fullText.length} characters`);
+
+      if (!fullText || fullText.trim().length < 50) {
+        throw new Error('Tesseract OCR could not extract sufficient text from the PDF');
+      }
+
+      return fullText.trim();
+
+    } catch (error) {
+      console.error('❌ Tesseract OCR extraction failed:', error.message);
+      throw new Error(`Could not extract text using Tesseract OCR: ${error.message}`);
+    }
+  }
 }
+
+module.exports = new PDFService();
 
 module.exports = new PDFService();

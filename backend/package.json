@@ -9,6 +9,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -21,12 +22,16 @@
     "mongoose": "^8.0.0",
     "multer": "^1.4.5-lts.1",
     "path": "^0.12.7",
+    "pdf-parse": "^1.1.1",
+    "pdf-to-png-converter": "^3.11.0",
+    "pdf2pic": "^3.2.0",
     "pdfkit": "^0.17.2",
     "qrcode": "^1.5.4",
     "rate-limit-redis": "^4.3.1",
     "redis": "^5.10.0",
     "resend": "^6.7.0",
-    "speakeasy": "^2.0.0"
+    "speakeasy": "^2.0.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const Resume = require('../models/Resume');
 const ResumeReview = require('../models/ResumeReview');
@@ -8,6 +11,49 @@ const aiService = require('../services/aiService');
 const pdfService = require('../services/pdfService');
 
 const { protect } = require('../middleware/authMiddleware');
+
+// Configure multer for PDF uploads
+const uploadDir = path.join(__dirname, '../uploads/temp');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'job-desc-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype === 'application/pdf') {
+    cb(null, true);
+  } else {
+    cb(new Error('Only PDF files are allowed for job descriptions'));
+  }
+};
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: fileFilter
+});
+
+// Separate multer instance for resume uploads (accepts PDF only)
+const resumeUpload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed for resumes'));
+    }
+  }
+});
 
 // @route   POST /api/resume
 // @desc    Create or Update Resume (Student)
@@ -420,6 +466,189 @@ router.post('/optimize-for-job', protect, async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       message: err.message || 'Failed to optimize resume. Please check your API key configuration.' 
+    });
+  }
+});
+
+// @route   POST /api/resume/extract-job-description
+// @desc    Extract text from job description PDF
+// @access  Private
+router.post('/extract-job-description', protect, upload.single('jobDescriptionPdf'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No PDF file uploaded'
+      });
+    }
+
+    console.log('📄 Extracting text from job description PDF:', req.file.filename);
+
+    // Extract text from PDF
+    const extractedText = await pdfService.extractTextFromPDF(req.file.path);
+
+    // Delete the temporary file after extraction
+    fs.unlink(req.file.path, (err) => {
+      if (err) console.error('Error deleting temp file:', err);
+    });
+
+    if (!extractedText || extractedText.trim().length < 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Could not extract sufficient text from PDF. Please ensure the PDF contains readable text (not images).'
+      });
+    }
+
+    console.log(`✅ Extracted ${extractedText.length} characters from PDF`);
+
+    res.json({
+      success: true,
+      message: 'Text extracted successfully from job description PDF',
+      data: {
+        text: extractedText,
+        characterCount: extractedText.length
+      }
+    });
+
+  } catch (err) {
+    console.error('❌ PDF extraction failed:', err.message);
+    
+    // Clean up file if it exists
+    if (req.file && req.file.path) {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to extract text from PDF. Please ensure the PDF is readable and try again.',
+      error: err.message
+    });
+  }
+});
+
+// @route   POST /api/resume/analyze-resume-for-job
+// @desc    Analyze uploaded resume PDF against job description
+// @access  Private
+router.post('/analyze-resume-for-job', protect, resumeUpload.single('resumePdf'), async (req, res) => {
+  try {
+    const { jobDescription } = req.body;
+
+    console.log('📥 Resume analysis request received');
+    console.log('📄 File uploaded:', req.file ? 'Yes' : 'No');
+    console.log('📝 Job description:', jobDescription ? 'Yes' : 'No');
+
+    // Validate inputs
+    if (!req.file) {
+      console.error('❌ No resume file uploaded');
+      return res.status(400).json({
+        success: false,
+        message: 'Resume PDF file is required'
+      });
+    }
+
+    console.log('✅ Resume file:', req.file.originalname, '(', req.file.size, 'bytes)');
+
+    if (!jobDescription || jobDescription.trim().length < 100) {
+      // Clean up uploaded file
+      if (req.file && req.file.path) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error('Error deleting temp file:', err);
+        });
+      }
+      
+      const currentLength = jobDescription ? jobDescription.trim().length : 0;
+      return res.status(400).json({
+        success: false,
+        message: `Job description must be at least 100 characters (current: ${currentLength})`
+      });
+    }
+
+    console.log('📄 Analyzing resume:', req.file.filename);
+    console.log('📝 Job description length:', jobDescription.length);
+
+    // Step 1: Extract text from resume PDF
+    let resumeText;
+    try {
+      resumeText = await pdfService.extractTextFromPDF(req.file.path);
+    } catch (extractError) {
+      // Clean up file
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Error deleting temp file:', err);
+      });
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Could not extract text from resume PDF. Please ensure the PDF contains readable text (not images).'
+      });
+    }
+
+    // Clean up the uploaded file after extraction
+    fs.unlink(req.file.path, (err) => {
+      if (err) console.error('Error deleting temp file:', err);
+    });
+
+    if (!resumeText || resumeText.trim().length < 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Could not extract sufficient text from resume. Please ensure your PDF is readable.'
+      });
+    }
+
+    console.log(`✅ Extracted ${resumeText.length} characters from resume`);
+
+    // Step 2: Parse resume text into structured format (basic parsing)
+    const resumeData = {
+      content: {
+        experience: [],
+        education: [],
+        skills: [],
+        projects: []
+      },
+      summary: '',
+      personalInfo: {
+        name: '',
+        email: '',
+        phone: '',
+        linkedin: ''
+      },
+      fullText: resumeText
+    };
+
+    console.log('🤖 Analyzing resume against job description with AI...');
+
+    // Step 3: Use AI to analyze the resume against job description
+    const optimization = await Promise.race([
+      aiService.analyzeResumeAgainstJob(resumeText, jobDescription),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Analysis timed out after 90 seconds')), 90000)
+      )
+    ]);
+
+    console.log('✅ Analysis completed successfully');
+    console.log('📈 Match Score:', optimization.matchScore);
+
+    res.json({
+      success: true,
+      message: 'Resume analyzed successfully against job description',
+      data: optimization
+    });
+
+  } catch (err) {
+    console.error('❌ Resume analysis failed:', err.message);
+    console.error('Stack trace:', err.stack);
+    
+    // Clean up file if it exists
+    if (req.file && req.file.path) {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
+      });
+    }
+
+    return res.status(500).json({ 
+      success: false, 
+      message: err.message || 'Failed to analyze resume. Please check your API configuration.' 
     });
   }
 });

@@ -14,6 +14,8 @@ const ResumeBuilder = () => {
   const [jobOptResults, setJobOptResults] = useState(null);
   const [showJobOptModal, setShowJobOptModal] = useState(false);
   const [jobDescription, setJobDescription] = useState('');
+  const [resumeUploadFile, setResumeUploadFile] = useState(null);
+  const [analyzingResume, setAnalyzingResume] = useState(false);
   
   const [personalInfo, setPersonalInfo] = useState({
     name: '',
@@ -299,20 +301,97 @@ const ResumeBuilder = () => {
     }
   };
 
-  // New function: Optimize for Job Description
-  const handleJobOptimization = async () => {
-    if (!jobDescription || jobDescription.trim().length < 50) {
+  // New function: Analyze uploaded resume against job description
+  const handleResumeAnalysis = async () => {
+    try {
+      // Step 1: Validate inputs
+      if (!jobDescription.trim()) {
+        setMessage({ 
+          type: 'error', 
+          text: 'Please provide a job description (minimum 50 characters)' 
+        });
+        return;
+      }
+
+      if (jobDescription.trim().length < 100) {
+        setMessage({ 
+          type: 'error', 
+          text: `Job description must be at least 100 characters (current: ${jobDescription.trim().length})` 
+        });
+        return;
+      }
+
+      if (!resumeUploadFile) {
+        setMessage({ 
+          type: 'error', 
+          text: 'Please upload your resume PDF for analysis' 
+        });
+        return;
+      }
+
+      // Step 2: Analyze resume against job description
+      console.log('📤 Preparing to analyze resume...');
+      console.log('Resume file:', resumeUploadFile.name, resumeUploadFile.size, 'bytes');
+      console.log('Job description length:', jobDescription.trim().length);
+
+      const analysisFormData = new FormData();
+      analysisFormData.append('resumePdf', resumeUploadFile);
+      analysisFormData.append('jobDescription', jobDescription.trim());
+
+      console.log('📡 Sending analysis request to /resume/analyze-resume-for-job');
+
+      const response = await api.post('/resume/analyze-resume-for-job', analysisFormData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 90000 // 90 seconds for complex analysis
+      });
+      
+      console.log('✅ Response received:', response.data);
+
+      if (response.data.success) {
+        setJobOptResults(response.data.data);
+        setShowJobOptModal(true);
+        setMessage({ 
+          type: 'success', 
+          text: `✅ Analysis complete! Match score: ${response.data.data.matchScore}%` 
+        });
+      }
+
+    } catch (error) {
+      console.error('Resume analysis error:', error);
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || 'Failed to analyze resume. Please check your inputs and try again.';
+      
       setMessage({ 
         type: 'error', 
-        text: 'Please provide a detailed job description (at least 50 characters).' 
+        text: errorMessage
       });
-      return;
+      
+      // Log detailed error for debugging
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        console.error('Error status:', error.response.status);
+      }
+    } finally {
+      setAnalyzingResume(false);
     }
+  };
 
-    setJobOptimizing(true);
-    setMessage({ type: '', text: '' });
-
+  // Optimize for Job Description (for form-built resumes)
+  const handleJobOptimization = async () => {
     try {
+      // Validate job description
+      if (!jobDescription.trim() || jobDescription.trim().length < 50) {
+        setMessage({ 
+          type: 'error', 
+          text: 'Please provide a detailed job description (at least 50 characters) or upload a PDF.' 
+        });
+        return;
+      }
+
+      setJobOptimizing(true);
+      setMessage({ type: '', text: '' });
+
       const optPayload = {
         personalInfo: {
           name: personalInfo.name,
@@ -327,7 +406,7 @@ const ResumeBuilder = () => {
           skills: formData.skills.split(',').map(skill => skill.trim()).filter(Boolean),
           projects: formData.projects.filter(proj => proj.title || proj.description)
         },
-        jobDescription: jobDescription
+        jobDescription: jobDescription.trim()
       };
 
       if (optPayload.content.experience.length === 0 && optPayload.content.education.length === 0) {
@@ -1107,54 +1186,155 @@ const ResumeBuilder = () => {
               <div className="mb-4">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2 mb-2">
                   <Target className="text-green-600" size={24} />
-                  Job Description Optimization
+                  Analyze Existing Resume for Job Match
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Paste a specific job description to get tailored optimization suggestions for that role
+                  Upload your resume and a job description to get AI-powered analysis and optimization suggestions
                 </p>
+                <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded">Step 1: Job Description</span>
+                  <span>→</span>
+                  <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 rounded">Step 2: Upload Resume</span>
+                  <span>→</span>
+                  <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 rounded">Step 3: Get Analysis</span>
+                </div>
               </div>
               
               <div className="space-y-4">
+                {/* Text Input Option */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Job Description
+                    Step 1: Paste Job Description Text
                   </label>
-                  <textarea
-                    placeholder="Paste the full job description here (minimum 50 characters)...&#10;&#10;Example:&#10;We are looking for a Senior Software Engineer with 5+ years of experience in React, Node.js, and cloud technologies. The ideal candidate will have strong problem-solving skills and experience with microservices architecture..."
-                    value={jobDescription}
-                    onChange={(e) => setJobDescription(e.target.value)}
-                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 dark:text-white min-h-[150px] resize-y focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
+                  <div className="relative">
+                    <textarea
+                      placeholder="Paste the full job description here (minimum 50 characters)...&#10;&#10;Example:&#10;We are looking for a Senior Software Engineer with 5+ years of experience in React, Node.js, and cloud technologies. The ideal candidate will have strong problem-solving skills and experience with microservices architecture..."
+                      value={jobDescription}
+                      onChange={(e) => setJobDescription(e.target.value)}
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 dark:text-white min-h-[250px] resize-y focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    />
+                    {jobDescription.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setJobDescription('')}
+                        className="absolute top-2 right-2 px-2 py-1 text-xs bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                   <div className="flex items-center justify-between mt-2">
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {jobDescription.length} / 50 minimum characters
+                      {jobDescription.length} / 100 minimum characters
                     </p>
-                    {jobDescription.length > 0 && jobDescription.length < 50 && (
+                    {jobDescription.length > 0 && jobDescription.length < 100 && (
                       <span className="text-xs text-orange-600 dark:text-orange-400">
-                        ⚠ Need {50 - jobDescription.length} more characters
+                        ⚠ Need {100 - jobDescription.length} more characters
                       </span>
                     )}
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleJobOptimization}
-                  disabled={jobOptimizing || jobDescription.trim().length < 50}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white font-medium rounded-lg hover:from-green-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-                >
-                  {jobOptimizing ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      Optimizing for Job...
-                    </>
-                  ) : (
-                    <>
-                      <TrendingUp size={20} />
-                      Optimize Resume for This Job
-                    </>
+                {/* Resume Upload for Analysis */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Step 2: Upload Your Resume PDF
+                  </label>
+                  <div className="border-2 border-dashed border-indigo-300 dark:border-indigo-600 rounded-lg p-6 text-center hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors bg-indigo-50/50 dark:bg-indigo-900/10">
+                    <input
+                      type="file"
+                      id="resume-analysis-upload"
+                      accept=".pdf"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            setMessage({ type: 'error', text: 'Resume PDF must be less than 5MB' });
+                            e.target.value = null;
+                            return;
+                          }
+                          setResumeUploadFile(file);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <label 
+                      htmlFor="resume-analysis-upload" 
+                      className="cursor-pointer flex flex-col items-center"
+                    >
+                      <Upload size={40} className="text-indigo-500 mb-3" />
+                      {resumeUploadFile ? (
+                        <>
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            ✓ {resumeUploadFile.name}
+                          </span>
+                          <span className="text-xs text-green-600 dark:text-green-400 mb-2">
+                            Resume uploaded successfully!
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setResumeUploadFile(null);
+                              document.getElementById('resume-analysis-upload').value = null;
+                            }}
+                            className="text-xs text-red-600 hover:text-red-800 dark:text-red-400"
+                          >
+                            Remove and upload different file
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-base font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            Click to upload your resume
+                          </span>
+                          <span className="text-xs text-gray-500 mb-1">PDF format, max 5MB</span>
+                          <span className="text-xs text-gray-400 italic">
+                            This will be analyzed against the job description above
+                          </span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                </div>
+
+                {/* Analysis Button */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleResumeAnalysis}
+                    disabled={analyzingResume || !jobDescription.trim() || jobDescription.trim().length < 100 || !resumeUploadFile}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold text-lg rounded-lg hover:from-green-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                  >
+                    {analyzingResume ? (
+                      <>
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                        Analyzing Resume vs Job...
+                      </>
+                    ) : (
+                      <>
+                        <TrendingUp size={24} />
+                        Analyze Resume for This Job
+                      </>
+                    )}
+                  </button>
+                  {!jobDescription.trim() && (
+                    <p className="text-xs text-orange-600 dark:text-orange-400 text-center mt-2">
+                      ⚠ Please provide a job description first (minimum 100 characters)
+                    </p>
                   )}
-                </button>
+                  {jobDescription.trim() && jobDescription.trim().length < 100 && (
+                    <p className="text-xs text-orange-600 dark:text-orange-400 text-center mt-2">
+                      ⚠ Job description needs {100 - jobDescription.trim().length} more characters
+                    </p>
+                  )}
+                  {jobDescription.trim().length >= 100 && !resumeUploadFile && (
+                    <p className="text-xs text-orange-600 dark:text-orange-400 text-center mt-2">
+                      ⚠ Please upload your resume PDF
+                    </p>
+                  )}
+                </div>
               </div>
             </section>
 

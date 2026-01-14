@@ -666,6 +666,135 @@ Be specific and actionable in all suggestions.`;
       };
     }
   }
+
+  /**
+   * Analyze uploaded resume text against job description
+   * @param {String} resumeText - Full text extracted from resume PDF
+   * @param {String} jobDescription - Job description to compare against
+   * @returns {Promise<Object>} Analysis results with match score and recommendations
+   */
+  async analyzeResumeAgainstJob(resumeText, jobDescription) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      throw new Error('Mistral API key not configured. Please set MISTRAL_API_KEY in your environment variables.');
+    }
+
+    const prompt = `You are an expert resume analyzer and career consultant. Analyze the following resume against a specific job description and provide detailed, actionable feedback.
+
+**JOB DESCRIPTION:**
+${jobDescription}
+
+**RESUME:**
+${resumeText}
+
+**YOUR TASK:**
+Perform a comprehensive analysis comparing this resume to the job description. Provide your response in the following JSON format:
+
+{
+  "matchScore": <number 0-100>,
+  "overallAssessment": "<brief 1-2 sentence summary of the match>",
+  "estimatedImprovement": "<e.g., '+30% with suggested changes'>",
+  
+  "keywordAnalysis": {
+    "matchingKeywords": ["<keyword1>", "<keyword2>", ...],
+    "missingKeywords": ["<keyword1>", "<keyword2>", ...],
+    "keywordsToAdd": [
+      {
+        "keyword": "<keyword>",
+        "priority": "<high|medium|low>",
+        "suggestion": "<specific advice on where/how to add this keyword>"
+      }
+    ]
+  },
+  
+  "summaryOptimization": {
+    "currentSummary": "<extract current summary/objective if present, or 'Not found'>",
+    "optimizedSummary": "<write a job-specific professional summary incorporating key requirements>",
+    "keyPhrasesAdded": ["<phrase1>", "<phrase2>", ...]
+  },
+  
+  "experienceOptimization": [
+    {
+      "currentSection": "<quote relevant part of experience>",
+      "issue": "<what's weak or missing>",
+      "optimizedVersion": "<rewritten version with job keywords>",
+      "reasoning": "<why this change improves the match>"
+    }
+  ],
+  
+  "skillsOptimization": {
+    "skillsToHighlight": ["<skill1>", "<skill2>", ...],
+    "skillsToAdd": ["<skill1>", "<skill2>", ...],
+    "skillsToRemove": ["<skill1>", "<skill2>", ...]
+  },
+  
+  "actionItems": [
+    {
+      "action": "<specific action to take>",
+      "priority": "<high|medium|low>",
+      "impact": "<expected impact on match score>",
+      "example": "<optional: specific example>"
+    }
+  ],
+  
+  "atsCompatibility": {
+    "score": <number 0-100>,
+    "recommendations": ["<recommendation1>", "<recommendation2>", ...]
+  },
+  
+  "strengthsIdentified": ["<strength1>", "<strength2>", ...],
+  "gapsIdentified": ["<gap1>", "<gap2>", ...],
+  
+  "overallRecommendation": "<Should apply|Good fit with changes|Consider other roles>"
+}
+
+**IMPORTANT GUIDELINES:**
+1. Be specific and actionable in all suggestions
+2. Focus on what the candidate CAN change (keywords, phrasing, emphasis)
+3. Don't suggest adding false information
+4. Prioritize changes that will have the biggest impact on ATS and recruiter screening
+5. Match score should reflect current resume fit (not potential with changes)
+6. Provide realistic, honest assessment
+
+Return ONLY valid JSON, no additional text.`;
+
+    try {
+      console.log('🚀 Sending resume analysis request to Mistral AI...');
+      
+      const response = await axios.post(
+        'https://api.mistral.ai/v1/chat/completions',
+        {
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+          max_tokens: 4000
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 90000
+        }
+      );
+
+      const content = response.data.choices[0].message.content;
+      console.log('✅ Received analysis response from AI');
+
+      return this.parseJobOptimizationResponse(content);
+
+    } catch (error) {
+      if (error.response) {
+        console.error('❌ Mistral API error:', error.response.status, error.response.data);
+        throw new Error(`Mistral API error: ${error.response.data.message || error.response.statusText}`);
+      } else if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      } else {
+        console.error('❌ Error analyzing resume:', error.message);
+        throw new Error('Failed to analyze resume: ' + error.message);
+      }
+    }
+  }
 }
 
 module.exports = new AIService();
