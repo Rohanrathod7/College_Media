@@ -188,6 +188,14 @@ export const marketplaceApi = {
   confirmDelivery: (orderId: string) => apiClient.post(`/payment/confirm-delivery/${orderId}`),
 };
 
+// Collab endpoints
+export const collabApi = {
+  createDocument: (data: any) => apiClient.post('/collab/documents', data),
+  getDocuments: () => apiClient.get('/collab/documents'),
+  getDocument: (id: string) => apiClient.get(`/collab/documents/${id}`),
+  deleteDocument: (id: string) => apiClient.delete(`/collab/documents/${id}`),
+};
+
 // Export all APIs
 export default {
   auth: authApi,
@@ -202,4 +210,5 @@ export default {
   polls: pollsApi,
   collections: collectionsApi,
   marketplace: marketplaceApi,
+  collab: collabApi,
 };

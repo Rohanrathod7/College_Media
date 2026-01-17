@@ -99,3 +99,14 @@ export interface Order {
     escrowStatus: 'Held' | 'Released' | 'Refunded' | 'N/A';
     createdAt: string;
 }
+
+export interface Document {
+    _id: string;
+    title: string;
+    owner: User | string;
+    content?: any;
+    collaborators: { user: User | string; role: 'editor' | 'viewer' }[];
+    isPublic: boolean;
+    lastModified: string;
+    createdAt: string;
+}

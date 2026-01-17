@@ -105,6 +105,10 @@ initCodeEditorSockets(io);
 const initNotificationSockets = require("./sockets/notifications");
 initNotificationSockets(io);
 
+// Initialize Collaboration Sockets
+const initCollabSockets = require("./sockets/collab");
+initCollabSockets(io);
+
 if (TRUST_PROXY) app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
@@ -263,6 +267,7 @@ app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api/credentials", require("./routes/credentials"));
 app.use("/api/tutor", require("./routes/tutor"));
 app.use("/api/whiteboard", require("./routes/whiteboard"));
+app.use("/api/collab", require("./routes/collab"));
 app.use("/api/marketplace", require("./routes/marketplace"));
 app.use("/api/payment", require("./routes/payment"));
 app.use("/api/live", require("./routes/live"));
