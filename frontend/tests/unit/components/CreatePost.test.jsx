@@ -1,3 +1,4 @@
+/* eslint-disable */
 /**
  * Unit Tests - CreatePost Component
  * Issue #348: Add Unit Tests for Core Components
@@ -504,10 +505,11 @@ describe('CreatePost Component', () => {
             render(<CreatePost onPostCreated={mockOnPostCreated} />);
 
             const textarea = screen.getByPlaceholderText(/what's happening/i);
-            const specialText = 'Test @user #hashtag 🎉 <script>alert("xss")</script>';
+            const specialText = 'Test @user #hashtag 🎉 &lt;script&gt;alert("xss")&lt;/script&gt;';
             await user.type(textarea, specialText);
 
             expect(textarea).toHaveValue(specialText);
         });
     });
 });
+

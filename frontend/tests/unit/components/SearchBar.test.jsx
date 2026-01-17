@@ -26,7 +26,7 @@ vi.mock('../../../src/hooks/useDebounce', () => ({
 
 vi.mock('../../../src/api/endpoints', () => ({
     searchApi: {
-        getSuggestions: vi.fn((query) =>
+        getSuggestions: vi.fn(() =>
             Promise.resolve([
                 { id: '1', type: 'user', name: 'testuser', username: '@testuser' },
                 { id: '2', type: 'post', content: 'Test post content' },

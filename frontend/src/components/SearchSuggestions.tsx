@@ -21,7 +21,7 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = ({
   query,
   history,
   onSelect,
-  onClose
+  onClose: _onClose
 }) => {
   const { t } = useTranslation();
   const [historyItems, setHistoryItems] = useState<string[]>(history);
