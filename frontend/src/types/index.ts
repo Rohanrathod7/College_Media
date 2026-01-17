@@ -73,3 +73,36 @@ export interface Collection {
     createdAt: string;
     updatedAt: string;
 }
+
+export interface TimeSlot {
+    _id: string;
+    start: string;
+    end: string;
+    isBooked: boolean;
+}
+
+export interface Availability {
+    _id: string;
+    day: string;
+    slots: TimeSlot[];
+}
+
+export interface MentorProfile {
+    _id: string;
+    userId: User;
+    bio: string;
+    skills: string[];
+    major: string;
+    yearOfGraduation: number;
+    availability: Availability[];
+    pricing: {
+        isFree: boolean;
+        amount: number;
+        currency: string;
+    };
+    rating: {
+        average: number;
+        count: number;
+    };
+    matchScore?: number;
+}
