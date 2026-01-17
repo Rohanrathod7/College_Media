@@ -263,6 +263,7 @@ app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api/credentials", require("./routes/credentials"));
 app.use("/api/tutor", require("./routes/tutor"));
 app.use("/api/whiteboard", require("./routes/whiteboard"));
+app.use("/api/marketplace", require("./routes/marketplace"));
 app.use("/api/payment", require("./routes/payment"));
 app.use("/api/live", require("./routes/live"));
 app.use("/api/feed", require("./routes/recommendations"));

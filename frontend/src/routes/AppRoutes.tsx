@@ -53,6 +53,7 @@ const ResumeBuilder = lazy(() => import("../pages/ResumeBuilder"));
 const ATSResume = lazy(() => import("../pages/ATSResume"));
 const AlumniResumeReview = lazy(() => import("../pages/AlumniResumeReview"));
 const AlumniConnect = lazy(() => import("../pages/AlumniConnect"));
+const Marketplace = lazy(() => import("../pages/Marketplace"));
 const NotFound = lazy(() => import("../pages/NotFound"));
 
 interface ProtectedRouteProps {
@@ -433,6 +434,15 @@ const AppRoutes: React.FC<AppRoutesProps> = ({
           element={
             <LazyWrapper>
               <AlumniConnect />
+            </LazyWrapper>
+          }
+        />
+
+        <Route
+          path="marketplace"
+          element={
+            <LazyWrapper>
+              <Marketplace />
             </LazyWrapper>
           }
         />

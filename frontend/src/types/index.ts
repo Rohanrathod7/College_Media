@@ -73,3 +73,29 @@ export interface Collection {
     createdAt: string;
     updatedAt: string;
 }
+
+export interface Product {
+    _id: string;
+    seller: User;
+    title: string;
+    description: string;
+    price: number;
+    category: 'Books' | 'Electronics' | 'Dorm Essentials' | 'Clothing' | 'Services' | 'Other';
+    images: string[];
+    condition: 'New' | 'Like New' | 'Good' | 'Fair' | 'Poor';
+    status: 'Available' | 'Pending' | 'Sold';
+    location: string;
+    createdAt: string;
+}
+
+export interface Order {
+    _id: string;
+    buyer: User | string;
+    seller: User | string;
+    product: Product | string;
+    amount: number;
+    currency: string;
+    status: 'Pending' | 'Paid' | 'Delivered' | 'Completed' | 'Cancelled' | 'Refunded';
+    escrowStatus: 'Held' | 'Released' | 'Refunded' | 'N/A';
+    createdAt: string;
+}
